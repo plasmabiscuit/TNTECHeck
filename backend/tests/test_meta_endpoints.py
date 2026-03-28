@@ -15,7 +15,7 @@ client = TestClient(app)
         ("/api/meta/sources", "capabilities"),
         ("/api/meta/indicators", "category"),
         ("/api/meta/program-groups", "cip_codes"),
-        ("/api/meta/comparison-groups", "institution_unitids"),
+        ("/api/meta/comparison-groups", "definition"),
         ("/api/meta/presets", "sections"),
         ("/api/meta/docs", "url"),
         ("/api/meta/eligibility-profiles", "criteria"),

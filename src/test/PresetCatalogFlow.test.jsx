@@ -65,7 +65,7 @@ const fixture = {
     ]
   },
   comparisonGroups: {
-    data: [{ id: 'tn_public_peers', label: 'TN Public Peers', institution_unitids: [1, 2] }]
+    data: [{ id: 'tn_public_peers', label: 'TN Public Peers', definition: { type: 'manual', institution_unitids: [1, 2] } }]
   },
   programGroups: {
     data: [{ id: 'biology_cip_group', label: 'Biology CIP Group', cip_codes: ['26.0101'] }]
@@ -93,7 +93,7 @@ describe('Preset catalog filtering and launch flow', () => {
           status: 'completed',
           generated_at_utc: '2026-03-28T00:00:00Z',
           institution_id: '221847',
-          filters: { items: [] },
+          filters: { items: [{ field: 'comparison_group_id', operator: 'eq', value: 'tn_public_peers' }] },
           kpis: [{ id: 'nih_award_count', label: 'NIH Awards', value: 11, unit: 'awards' }],
           tables: [
             {

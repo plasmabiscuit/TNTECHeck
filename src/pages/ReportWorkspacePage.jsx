@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -35,17 +35,6 @@ export function ReportWorkspacePage() {
   const presetId = searchParams.get('presetId');
 
   const metadataState = useAsyncData(fetchWorkspacePresetMetadata);
-  const loadReport = useCallback(async () => {
-    if (!presetId) {
-      return null;
-    }
-
-    return runPresetReport({
-      presetId,
-      filters: [{ field: 'comparison_group_id', operator: 'eq', value: 'tn_public_peers' }]
-    });
-  }, [presetId]);
-  const reportState = useAsyncData(loadReport);
 
   const workspace = useMemo(() => {
     if (!metadataState.data || !presetId) {
@@ -66,11 +55,14 @@ export function ReportWorkspacePage() {
     const indicators = [...indicatorIds].map((indicatorId) => indicatorById.get(indicatorId)).filter(Boolean);
     const sourceIds = new Set(indicators.flatMap((indicator) => indicator.source_ids));
 
-    const comparisonGroups = preset.sections
+    const preferredComparisonGroupIds = preset.sections
       .map((section) => section.comparison_group_id)
-      .filter(Boolean)
-      .map((groupId) => comparisonById.get(groupId))
       .filter(Boolean);
+
+    const preferredComparisonGroups = preferredComparisonGroupIds.map((groupId) => comparisonById.get(groupId)).filter(Boolean);
+
+    const comparisonGroups =
+      preferredComparisonGroups.length > 0 ? preferredComparisonGroups : metadataState.data.comparisonGroups;
 
     const programGroups = preset.sections
       .flatMap((section) => section.program_group_ids)
@@ -82,9 +74,25 @@ export function ReportWorkspacePage() {
       requiredSources: [...sourceIds].map((sourceId) => sourceById.get(sourceId)).filter(Boolean),
       indicators,
       comparisonGroups,
-      programGroups
+      programGroups,
+      selectedComparisonGroupId: comparisonGroups[0]?.id || null
     };
   }, [metadataState.data, presetId]);
+
+  const [selectedComparisonGroupId, setSelectedComparisonGroupId] = useState(null);
+  const effectiveComparisonGroupId = selectedComparisonGroupId || workspace?.selectedComparisonGroupId || 'tn_public_peers';
+
+  const loadReport = useCallback(async () => {
+    if (!presetId) {
+      return null;
+    }
+
+    return runPresetReport({
+      presetId,
+      filters: [{ field: 'comparison_group_id', operator: 'eq', value: effectiveComparisonGroupId }]
+    });
+  }, [effectiveComparisonGroupId, presetId]);
+  const reportState = useAsyncData(loadReport);
 
   if (metadataState.loading || (presetId && reportState.loading)) {
     return <LoadingState label="Loading report workspace…" />;
@@ -137,6 +145,22 @@ export function ReportWorkspacePage() {
         <p>
           <strong>Funder context:</strong> {workspace.preset.sponsor_context.join(', ')}
         </p>
+        <label htmlFor="comparison-group-select">
+          <strong>Comparison Group:</strong>
+        </label>
+        <select
+          id="comparison-group-select"
+          value={effectiveComparisonGroupId}
+          onChange={(event) => {
+            setSelectedComparisonGroupId(event.target.value);
+          }}
+        >
+          {workspace.comparisonGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.label}
+            </option>
+          ))}
+        </select>
       </article>
 
       <article className="panel">

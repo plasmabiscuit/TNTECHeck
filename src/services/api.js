@@ -9,7 +9,7 @@ async function handleJsonResponse(response) {
   return response.json();
 }
 
-async function fetchMetaRegistry(name) {
+export async function fetchMetaRegistry(name) {
   const response = await fetch(`${API_BASE}/meta/${name}`);
   return handleJsonResponse(response);
 }

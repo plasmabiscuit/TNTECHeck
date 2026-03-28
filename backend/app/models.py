@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class MetaEnvelope(BaseModel):
@@ -47,11 +47,38 @@ class ProgramGroupMeta(BaseModel):
     cip_codes: list[str]
 
 
+class ComparisonGroupRule(BaseModel):
+    rule_type: str
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ComparisonGroupDefinition(BaseModel):
+    type: Literal["manual", "rule_based"]
+    institution_unitids: list[int] = Field(default_factory=list)
+    rule: ComparisonGroupRule | None = None
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> "ComparisonGroupDefinition":
+        if self.type == "manual":
+            if not self.institution_unitids:
+                raise ValueError("manual comparison groups must include at least one institution_unitid")
+            if self.rule is not None:
+                raise ValueError("manual comparison groups cannot define rule placeholders")
+
+        if self.type == "rule_based":
+            if self.institution_unitids:
+                raise ValueError("rule-based comparison groups cannot include fixed institution_unitids")
+            if self.rule is None:
+                raise ValueError("rule-based comparison groups must define a rule placeholder")
+
+        return self
+
+
 class ComparisonGroupMeta(BaseModel):
     id: str
     label: str
     description: str | None = None
-    institution_unitids: list[int]
+    definition: ComparisonGroupDefinition
 
 
 class PresetSection(BaseModel):
@@ -116,7 +143,7 @@ class ReportRunRequest(BaseModel):
 class KpiResult(BaseModel):
     id: str
     label: str
-    value: float | int
+    value: float | int | str
     unit: str | None = None
     trend: Literal["up", "down", "flat"] | None = None
     context_note: str | None = None

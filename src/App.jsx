@@ -3,6 +3,7 @@ import { AppLayout } from './components/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { PresetCatalogPage } from './pages/PresetCatalogPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { ComparisonGroupManagerPage } from './pages/ComparisonGroupManagerPage';
 import { ReportWorkspacePage } from './pages/ReportWorkspacePage';
 
 export function App() {
@@ -24,10 +25,7 @@ export function App() {
           path="/program-groups"
           element={<PlaceholderPage title="Program Group Manager" description="Define CIP-based program groups for strict, broad, and custom reporting contexts." />}
         />
-        <Route
-          path="/comparison-groups"
-          element={<PlaceholderPage title="Comparison Group Manager" description="Maintain reusable peer and benchmark institution groups for TTU comparisons." />}
-        />
+        <Route path="/comparison-groups" element={<ComparisonGroupManagerPage />} />
         <Route
           path="/funding-history"
           element={<PlaceholderPage title="Funding History" description="Review sponsor-specific NIH, NSF, and NIFA historical award context for TTU." />}

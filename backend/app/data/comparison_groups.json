@@ -3,12 +3,33 @@
     "id": "tn_public_peers",
     "label": "Tennessee Public Peers",
     "description": "State-level public peers used for benchmark views.",
-    "institution_unitids": [220978, 221759, 221838]
+    "definition": {
+      "type": "manual",
+      "institution_unitids": [220978, 221759, 221838]
+    }
   },
   {
     "id": "appalachian_masters",
     "label": "Appalachian Master's Institutions",
     "description": "Regional comparison institutions for capacity proposals.",
-    "institution_unitids": [199193, 203517, 211644]
+    "definition": {
+      "type": "manual",
+      "institution_unitids": [199193, 203517, 211644]
+    }
+  },
+  {
+    "id": "carnegie_m1_regional",
+    "label": "Carnegie M1 Regional Rule",
+    "description": "Rule-driven placeholder for future dynamic peer resolution.",
+    "definition": {
+      "type": "rule_based",
+      "rule": {
+        "rule_type": "carnegie",
+        "params": {
+          "basic_classification": "M1",
+          "region": "south"
+        }
+      }
+    }
   }
 ]
