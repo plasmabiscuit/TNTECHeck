@@ -51,12 +51,13 @@ export async function fetchWorkspacePresetMetadata() {
   };
 }
 
-export async function runPresetReport({ presetId, filters = [] }) {
+export async function runPresetReport({ presetId, comparisonGroupId = null, filters = [] }) {
   const response = await fetch(`${API_BASE}/report/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       preset_id: presetId,
+      comparison_group_id: comparisonGroupId,
       filters: { items: filters }
     })
   });
@@ -105,4 +106,38 @@ export async function previewProgramGroup(payload) {
     body: JSON.stringify(payload)
   });
   return handleJsonResponse(response);
+}
+
+export async function fetchComparisonGroups() {
+  const response = await fetch(`${API_BASE}/comparison-groups`);
+  return handleJsonResponse(response);
+}
+
+export async function createComparisonGroup(payload) {
+  const response = await fetch(`${API_BASE}/comparison-groups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return handleJsonResponse(response);
+}
+
+export async function updateComparisonGroup(id, payload) {
+  const response = await fetch(`${API_BASE}/comparison-groups/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return handleJsonResponse(response);
+}
+
+export async function deleteComparisonGroup(id) {
+  const response = await fetch(`${API_BASE}/comparison-groups/${id}`, {
+    method: 'DELETE'
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
+  }
 }

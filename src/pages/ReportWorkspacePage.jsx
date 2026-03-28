@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
@@ -33,6 +33,7 @@ function ChartPreview({ chart }) {
 export function ReportWorkspacePage() {
   const [searchParams] = useSearchParams();
   const presetId = searchParams.get('presetId');
+  const [selectedComparisonGroupId, setSelectedComparisonGroupId] = useState(null);
 
   const metadataState = useAsyncData(fetchWorkspacePresetMetadata);
   const loadReport = useCallback(async () => {
@@ -40,11 +41,19 @@ export function ReportWorkspacePage() {
       return null;
     }
 
+    const fallbackComparisonGroupId =
+      selectedComparisonGroupId ??
+      metadataState.data?.presets
+        ?.find((item) => item.id === presetId)
+        ?.sections?.find((section) => section.comparison_group_id)?.comparison_group_id ??
+      'tn_public_peers';
+
     return runPresetReport({
       presetId,
-      filters: [{ field: 'comparison_group_id', operator: 'eq', value: 'tn_public_peers' }]
+      comparisonGroupId: fallbackComparisonGroupId,
+      filters: [{ field: 'comparison_group_id', operator: 'eq', value: fallbackComparisonGroupId }]
     });
-  }, [presetId]);
+  }, [metadataState.data, presetId, selectedComparisonGroupId]);
   const reportState = useAsyncData(loadReport);
 
   const workspace = useMemo(() => {
@@ -82,9 +91,11 @@ export function ReportWorkspacePage() {
       requiredSources: [...sourceIds].map((sourceId) => sourceById.get(sourceId)).filter(Boolean),
       indicators,
       comparisonGroups,
-      programGroups
+      programGroups,
+      selectedComparisonGroupId:
+        selectedComparisonGroupId ?? comparisonGroups[0]?.id ?? preset.sections.find((section) => section.comparison_group_id)?.comparison_group_id
     };
-  }, [metadataState.data, presetId]);
+  }, [metadataState.data, presetId, selectedComparisonGroupId]);
 
   if (metadataState.loading || (presetId && reportState.loading)) {
     return <LoadingState label="Loading report workspace…" />;
@@ -137,6 +148,19 @@ export function ReportWorkspacePage() {
         <p>
           <strong>Funder context:</strong> {workspace.preset.sponsor_context.join(', ')}
         </p>
+        <label>
+          Comparison group
+          <select
+            value={workspace.selectedComparisonGroupId ?? ''}
+            onChange={(event) => setSelectedComparisonGroupId(event.target.value || null)}
+          >
+            {workspace.comparisonGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </article>
 
       <article className="panel">

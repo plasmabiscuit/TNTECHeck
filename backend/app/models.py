@@ -75,11 +75,31 @@ class ProgramGroupPreview(BaseModel):
     items: list[ProgramGroupPreviewItem] = Field(default_factory=list)
 
 
+class ComparisonGroupRule(BaseModel):
+    field: str
+    operator: Literal["eq", "neq", "in", "not_in", "gte", "lte", "between", "contains"]
+    value: str | int | float | list[str] | list[int] | list[float]
+
+
 class ComparisonGroupMeta(BaseModel):
     id: str
     label: str
     description: str | None = None
-    institution_unitids: list[int]
+    definition_type: Literal["manual_list", "rule_based_placeholder"] = "manual_list"
+    institution_unitids: list[int] = Field(default_factory=list)
+    rules: list[ComparisonGroupRule] = Field(default_factory=list)
+    notes: str | None = None
+    version: int = Field(default=1, ge=1)
+
+
+class ComparisonGroupUpsertRequest(BaseModel):
+    id: str
+    label: str
+    description: str | None = None
+    definition_type: Literal["manual_list", "rule_based_placeholder"]
+    institution_unitids: list[int] = Field(default_factory=list)
+    rules: list[ComparisonGroupRule] = Field(default_factory=list)
+    notes: str | None = None
 
 
 class PresetSection(BaseModel):
@@ -138,6 +158,7 @@ class ReportFilters(BaseModel):
 
 class ReportRunRequest(BaseModel):
     preset_id: str
+    comparison_group_id: str | None = None
     filters: ReportFilters = Field(default_factory=ReportFilters)
 
 

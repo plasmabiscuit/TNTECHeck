@@ -3,12 +3,33 @@
     "id": "tn_public_peers",
     "label": "Tennessee Public Peers",
     "description": "State-level public peers used for benchmark views.",
-    "institution_unitids": [220978, 221759, 221838]
+    "definition_type": "manual_list",
+    "institution_unitids": [220978, 221759, 221838],
+    "rules": [],
+    "notes": "Seed manual list for statewide benchmark context.",
+    "version": 1
   },
   {
     "id": "appalachian_masters",
     "label": "Appalachian Master's Institutions",
     "description": "Regional comparison institutions for capacity proposals.",
-    "institution_unitids": [199193, 203517, 211644]
+    "definition_type": "manual_list",
+    "institution_unitids": [199193, 203517, 211644],
+    "rules": [],
+    "notes": "Manual list oriented around regional master's institutions.",
+    "version": 1
+  },
+  {
+    "id": "public_4yr_rule_placeholder",
+    "label": "Public 4-Year Rule Placeholder",
+    "description": "Rule-driven placeholder group for future adapter-backed peer expansion.",
+    "definition_type": "rule_based_placeholder",
+    "institution_unitids": [],
+    "rules": [
+      { "field": "sector", "operator": "eq", "value": "public_4_year" },
+      { "field": "state", "operator": "eq", "value": "TN" }
+    ],
+    "notes": "Rule placeholders are persisted now; downstream adapter resolution is deferred.",
+    "version": 1
   }
 ]

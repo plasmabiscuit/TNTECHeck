@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.models import (
     ComparisonGroupMeta,
+    ComparisonGroupUpsertRequest,
     DocsMeta,
     EligibilityProfileMeta,
     ErrorBody,
@@ -127,7 +128,47 @@ def _preview_program_group(payload: ProgramGroupUpsertRequest) -> ProgramGroupPr
             ProgramGroupPreviewItem(cip_code=cip_code, award_levels=unique_award_levels)
             for cip_code in payload.cip_codes
         ],
-    )
+        )
+
+
+def _validate_comparison_group(payload: ComparisonGroupUpsertRequest, *, existing_id: str | None = None) -> None:
+    existing = {item.id for item in _load("comparison_groups", ComparisonGroupMeta)}
+    if payload.id in existing and payload.id != existing_id:
+        raise RegistryError(
+            code="DUPLICATE_COMPARISON_GROUP_ID",
+            message=f"Comparison group id '{payload.id}' already exists.",
+            details={"id": payload.id},
+        )
+
+    if payload.definition_type == "manual_list":
+        if not payload.institution_unitids:
+            raise RegistryError(
+                code="EMPTY_COMPARISON_GROUP_UNITIDS",
+                message="Manual comparison groups must include at least one UNITID.",
+                details={"id": payload.id},
+            )
+        if payload.rules:
+            raise RegistryError(
+                code="INVALID_COMPARISON_GROUP_RULES",
+                message="Manual comparison groups cannot include rule predicates.",
+                details={"id": payload.id},
+            )
+
+    if payload.definition_type == "rule_based_placeholder":
+        if not payload.rules:
+            raise RegistryError(
+                code="EMPTY_COMPARISON_GROUP_RULES",
+                message="Rule-based comparison groups must include at least one rule.",
+                details={"id": payload.id},
+            )
+
+    invalid_unitids = [unitid for unitid in payload.institution_unitids if unitid <= 0]
+    if invalid_unitids:
+        raise RegistryError(
+            code="INVALID_COMPARISON_GROUP_UNITID",
+            message="Comparison group contains invalid UNITID values.",
+            details={"id": payload.id, "invalid_unitids": invalid_unitids},
+        )
 
 
 @app.exception_handler(RegistryError)
@@ -142,6 +183,12 @@ async def handle_registry_error(_: Request, exc: RegistryError) -> JSONResponse:
         "INVALID_PROGRAM_GROUP_CIP": 422,
         "EMPTY_PROGRAM_GROUP_CIPS": 422,
         "EMPTY_PROGRAM_GROUP_AWARD_LEVELS": 422,
+        "DUPLICATE_COMPARISON_GROUP_ID": 409,
+        "EMPTY_COMPARISON_GROUP_UNITIDS": 422,
+        "INVALID_COMPARISON_GROUP_RULES": 422,
+        "EMPTY_COMPARISON_GROUP_RULES": 422,
+        "INVALID_COMPARISON_GROUP_UNITID": 422,
+        "COMPARISON_GROUP_NOT_FOUND": 404,
     }
     return JSONResponse(status_code=status_map.get(exc.code, 500), content=payload.model_dump(mode="json"))
 
@@ -242,6 +289,79 @@ def get_comparison_groups() -> dict:
     return _envelope(_load("comparison_groups", ComparisonGroupMeta))
 
 
+@app.get("/api/comparison-groups", response_model=ComparisonGroupResponse, responses={500: {"model": ErrorResponse}})
+def list_comparison_groups() -> dict:
+    return _envelope(_load("comparison_groups", ComparisonGroupMeta))
+
+
+@app.post(
+    "/api/comparison-groups",
+    response_model=ComparisonGroupMeta,
+    responses={409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+def create_comparison_group(request: ComparisonGroupUpsertRequest) -> ComparisonGroupMeta:
+    _validate_comparison_group(request)
+    items = _load("comparison_groups", ComparisonGroupMeta)
+    created = ComparisonGroupMeta(
+        id=request.id,
+        label=request.label,
+        description=request.description,
+        definition_type=request.definition_type,
+        institution_unitids=request.institution_unitids,
+        rules=request.rules,
+        notes=request.notes,
+        version=1,
+    )
+    items.append(created)
+    _save("comparison_groups", items)
+    return created
+
+
+@app.put(
+    "/api/comparison-groups/{comparison_group_id}",
+    response_model=ComparisonGroupMeta,
+    responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+def update_comparison_group(comparison_group_id: str, request: ComparisonGroupUpsertRequest) -> ComparisonGroupMeta:
+    items = _load("comparison_groups", ComparisonGroupMeta)
+    found_index = next((idx for idx, item in enumerate(items) if item.id == comparison_group_id), None)
+    if found_index is None:
+        raise RegistryError(
+            code="COMPARISON_GROUP_NOT_FOUND",
+            message=f"Comparison group '{comparison_group_id}' was not found.",
+            details={"id": comparison_group_id},
+        )
+
+    _validate_comparison_group(request, existing_id=comparison_group_id)
+    current = items[found_index]
+    updated = ComparisonGroupMeta(
+        id=request.id,
+        label=request.label,
+        description=request.description,
+        definition_type=request.definition_type,
+        institution_unitids=request.institution_unitids,
+        rules=request.rules,
+        notes=request.notes,
+        version=current.version + 1,
+    )
+    items[found_index] = updated
+    _save("comparison_groups", items)
+    return updated
+
+
+@app.delete("/api/comparison-groups/{comparison_group_id}", status_code=204, responses={404: {"model": ErrorResponse}})
+def delete_comparison_group(comparison_group_id: str) -> None:
+    items = _load("comparison_groups", ComparisonGroupMeta)
+    next_items = [item for item in items if item.id != comparison_group_id]
+    if len(next_items) == len(items):
+        raise RegistryError(
+            code="COMPARISON_GROUP_NOT_FOUND",
+            message=f"Comparison group '{comparison_group_id}' was not found.",
+            details={"id": comparison_group_id},
+        )
+    _save("comparison_groups", next_items)
+
+
 @app.get("/api/meta/presets", response_model=PresetResponse, responses={500: {"model": ErrorResponse}})
 def get_presets() -> dict:
     return _envelope(_load("presets", PresetMeta))
@@ -278,6 +398,8 @@ def run_report(request: ReportRunRequest) -> ReportRunResult:
     known_program_group_ids = {item.id for item in _load("program_groups", ProgramGroupMeta)}
     known_comparison_group_ids = {item.id for item in _load("comparison_groups", ComparisonGroupMeta)}
 
+    selected_comparison_group = request.comparison_group_id
+
     for filter_item in request.filters.items:
         if filter_item.field == "program_group_id" and filter_item.operator == "eq":
             if filter_item.value not in known_program_group_ids:
@@ -288,12 +410,20 @@ def run_report(request: ReportRunRequest) -> ReportRunResult:
                 )
 
         if filter_item.field == "comparison_group_id" and filter_item.operator == "eq":
+            selected_comparison_group = str(filter_item.value)
             if filter_item.value not in known_comparison_group_ids:
                 raise RegistryError(
                     code="INVALID_FILTER",
                     message="Invalid comparison_group_id filter value.",
                     details={"field": "comparison_group_id", "value": filter_item.value},
                 )
+
+    if selected_comparison_group and selected_comparison_group not in known_comparison_group_ids:
+        raise RegistryError(
+            code="INVALID_FILTER",
+            message="Invalid comparison_group_id filter value.",
+            details={"field": "comparison_group_id", "value": selected_comparison_group},
+        )
 
     try:
         return run_preset_report(request)

@@ -24,6 +24,23 @@ def test_run_institutional_profile_report_success() -> None:
     assert payload["tables"], "Expected table payload for first real report run"
     assert payload["source_notes"], "Expected source notes for provenance visibility"
     assert "mode" in payload["provenance"]
+    assert "benchmark" in payload["provenance"]
+    assert payload["provenance"]["query"]["comparison_group_id"] == "tn_public_peers"
+
+
+def test_run_report_supports_workspace_comparison_group_field() -> None:
+    response = client.post(
+        "/api/report/run",
+        json={
+            "preset_id": "institutional_profile_core",
+            "comparison_group_id": "appalachian_masters",
+            "filters": {"items": []},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provenance"]["query"]["comparison_group_id"] == "appalachian_masters"
 
 
 def test_run_report_rejects_unknown_preset() -> None:

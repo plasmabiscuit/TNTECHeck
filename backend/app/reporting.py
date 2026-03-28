@@ -3,6 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.benchmarks import (
+    calc_delta_to_peer_median,
+    calc_peer_median,
+    calc_rank_percentile_placeholder,
+    calc_ttu_vs_history,
+)
 from app.models import (
     ChartPoint,
     ChartResult,
@@ -34,7 +40,21 @@ def run_preset_report(request: ReportRunRequest) -> ReportRunResult:
 
 
 def _run_institutional_profile(request: ReportRunRequest) -> ReportRunResult:
-    selected_comparison = _resolve_filter(request.filters, "comparison_group_id") or "tn_public_peers"
+    selected_comparison = request.comparison_group_id or _resolve_filter(request.filters, "comparison_group_id") or "tn_public_peers"
+    benchmark_seed = {
+        "tn_public_peers": {"headcount": [11890, 12388, 12990], "pell_share": [40.3, 41.2, 43.1]},
+        "appalachian_masters": {"headcount": [8144, 9020, 9760], "pell_share": [43.9, 46.5, 48.2]},
+    }.get(selected_comparison, {"headcount": [12388], "pell_share": [41.2]})
+
+    headcount_history = calc_ttu_vs_history(10291, 9978)
+    headcount_peer_median = calc_peer_median(benchmark_seed["headcount"]) or 0.0
+    headcount_delta_to_peer = calc_delta_to_peer_median(10291, benchmark_seed["headcount"]) or 0.0
+    headcount_rank = calc_rank_percentile_placeholder(10291, benchmark_seed["headcount"])
+
+    pell_history = calc_ttu_vs_history(45.6, 45.2)
+    pell_peer_median = calc_peer_median(benchmark_seed["pell_share"]) or 0.0
+    pell_delta_to_peer = calc_delta_to_peer_median(45.6, benchmark_seed["pell_share"]) or 0.0
+    pell_rank = calc_rank_percentile_placeholder(45.6, benchmark_seed["pell_share"])
 
     kpis = [
         KpiResult(
@@ -43,7 +63,11 @@ def _run_institutional_profile(request: ReportRunRequest) -> ReportRunResult:
             value=10291,
             unit="students",
             trend="up",
-            context_note="Latest institutional profile snapshot from Urban summary endpoint pathway.",
+            context_note=(
+                f"TTU history delta {headcount_history['delta']:.0f}; peer median {headcount_peer_median:.0f}; "
+                f"delta-to-median {headcount_delta_to_peer:.0f}; rank placeholder "
+                f"{headcount_rank['rank']}/{headcount_rank['group_size']}."
+            ),
         ),
         KpiResult(
             id="pell_share",
@@ -51,7 +75,10 @@ def _run_institutional_profile(request: ReportRunRequest) -> ReportRunResult:
             value=45.6,
             unit="percent",
             trend="flat",
-            context_note="Share of undergraduates receiving Pell grants in latest snapshot year.",
+            context_note=(
+                f"TTU history delta {pell_history['delta']:.1f}pp; peer median {pell_peer_median:.1f}%; "
+                f"delta-to-median {pell_delta_to_peer:.1f}pp; percentile placeholder {pell_rank['percentile']}."
+            ),
         ),
     ]
 
@@ -62,10 +89,28 @@ def _run_institutional_profile(request: ReportRunRequest) -> ReportRunResult:
             TableColumn(key="group", label="Institution Group", kind="dimension"),
             TableColumn(key="headcount_total", label="Total Enrollment", kind="metric", unit="students"),
             TableColumn(key="pell_share", label="Pell Grant Share", kind="metric", unit="percent"),
+            TableColumn(key="headcount_delta_peer_median", label="Enrollment Δ vs Peer Median", kind="metric", unit="students"),
+            TableColumn(key="pell_delta_peer_median", label="Pell Share Δ vs Peer Median", kind="metric", unit="percent"),
         ],
         rows=[
-            TableRow(cells={"group": "TTU", "headcount_total": 10291, "pell_share": 45.6}),
-            TableRow(cells={"group": "Tennessee Public Peers", "headcount_total": 12388, "pell_share": 41.2}),
+            TableRow(
+                cells={
+                    "group": "TTU",
+                    "headcount_total": 10291,
+                    "pell_share": 45.6,
+                    "headcount_delta_peer_median": round(headcount_delta_to_peer, 2),
+                    "pell_delta_peer_median": round(pell_delta_to_peer, 2),
+                }
+            ),
+            TableRow(
+                cells={
+                    "group": "Peer Median",
+                    "headcount_total": round(headcount_peer_median, 2),
+                    "pell_share": round(pell_peer_median, 2),
+                    "headcount_delta_peer_median": 0,
+                    "pell_delta_peer_median": 0,
+                }
+            ),
         ],
     )
 
@@ -108,6 +153,20 @@ def _run_institutional_profile(request: ReportRunRequest) -> ReportRunResult:
                 "comparison_group_id": selected_comparison,
                 "institution_id": "221847",
                 "output": "report",
+            },
+            "benchmark": {
+                "headcount": {
+                    "history": headcount_history,
+                    "peer_median": headcount_peer_median,
+                    "delta_to_peer_median": headcount_delta_to_peer,
+                    "rank_percentile_placeholder": headcount_rank,
+                },
+                "pell_share": {
+                    "history": pell_history,
+                    "peer_median": pell_peer_median,
+                    "delta_to_peer_median": pell_delta_to_peer,
+                    "rank_percentile_placeholder": pell_rank,
+                },
             },
             "record_count": len(table.rows),
             "source": "urban_ed_api",
