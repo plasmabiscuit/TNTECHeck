@@ -1,6 +1,6 @@
 # Registry File Structure
 
-The backend loads JSON registries from the `registries/` folder at startup (or on first metadata request) and validates each entry against typed schemas.
+The backend loads JSON registries from the `registries/` folder on first access via `get_registry_bundle()` (typically triggered by the first metadata request), then caches the bundle and validates each entry against typed schemas.
 
 ## TTU default context
 
