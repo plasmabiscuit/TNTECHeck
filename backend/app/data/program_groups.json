@@ -1,0 +1,14 @@
+[
+  {
+    "id": "biology_cip_group",
+    "label": "Biology and Biomedical Sciences",
+    "description": "Program group used for sponsor-facing biology completions tables.",
+    "cip_codes": ["26", "26.01", "26.02", "26.10"]
+  },
+  {
+    "id": "engineering_cip_group",
+    "label": "Engineering",
+    "description": "Core engineering programs for institutional capacity narratives.",
+    "cip_codes": ["14", "14.01", "14.07"]
+  }
+]

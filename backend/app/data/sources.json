@@ -1,0 +1,26 @@
+[
+  {
+    "id": "urban_ed_api",
+    "name": "Urban Education Data API",
+    "kind": "public_api",
+    "capabilities": ["institution_profile", "summary_endpoints", "json"],
+    "default_enabled": true,
+    "docs_url": "https://educationdata.urban.org/documentation/"
+  },
+  {
+    "id": "nces_ipeds",
+    "name": "NCES / IPEDS",
+    "kind": "download",
+    "capabilities": ["semantic_reference", "peer_group_reference", "fallback_import"],
+    "default_enabled": true,
+    "docs_url": "https://nces.ed.gov/ipeds/"
+  },
+  {
+    "id": "nih_reporter",
+    "name": "NIH RePORTER",
+    "kind": "public_api",
+    "capabilities": ["award_history", "organization_search", "project_detail"],
+    "default_enabled": true,
+    "docs_url": "https://api.reporter.nih.gov/"
+  }
+]

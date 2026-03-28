@@ -1,0 +1,27 @@
+[
+  {
+    "id": "headcount_total",
+    "label": "Total Enrollment",
+    "category": "institution_profile",
+    "unit": "students",
+    "default_aggregation": "latest_year",
+    "source_ids": ["urban_ed_api"],
+    "description": "Institution-wide student headcount."
+  },
+  {
+    "id": "pell_share",
+    "label": "Pell Grant Share",
+    "category": "equity",
+    "unit": "percent",
+    "default_aggregation": "latest_year",
+    "source_ids": ["urban_ed_api"]
+  },
+  {
+    "id": "nih_award_count",
+    "label": "NIH Award Count",
+    "category": "research_capacity",
+    "unit": "awards",
+    "default_aggregation": "annual_sum",
+    "source_ids": ["nih_reporter"]
+  }
+]
