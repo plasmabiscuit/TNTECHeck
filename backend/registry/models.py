@@ -16,9 +16,9 @@ class SourceRegistryEntry(RegistryBase):
     description: str = Field(min_length=1)
     adapter: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
-    supports_summary_endpoints: bool = False
-    supports_live_queries: bool = True
-    status: Literal["active", "degraded", "offline"] = "active"
+    supports_summary_endpoints: bool
+    supports_live_queries: bool
+    status: Literal["active", "degraded", "offline"]
 
 
 class SourceDocRegistryEntry(RegistryBase):
