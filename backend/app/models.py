@@ -43,8 +43,36 @@ class IndicatorMeta(BaseModel):
 class ProgramGroupMeta(BaseModel):
     id: str
     label: str
+    scope: Literal["strict", "broad", "custom"] = "custom"
     description: str | None = None
     cip_codes: list[str]
+    award_levels: list[str] = Field(default_factory=list)
+    notes: str | None = None
+    version: int = Field(default=1, ge=1)
+
+
+class ProgramGroupUpsertRequest(BaseModel):
+    id: str
+    label: str
+    scope: Literal["strict", "broad", "custom"]
+    description: str | None = None
+    cip_codes: list[str]
+    award_levels: list[str]
+    notes: str | None = None
+    version_note: str | None = None
+
+
+class ProgramGroupPreviewItem(BaseModel):
+    cip_code: str
+    award_levels: list[str]
+
+
+class ProgramGroupPreview(BaseModel):
+    requested_scope: Literal["strict", "broad", "custom"]
+    total_cip_codes: int
+    total_award_levels: int
+    total_combinations: int
+    items: list[ProgramGroupPreviewItem] = Field(default_factory=list)
 
 
 class ComparisonGroupMeta(BaseModel):

@@ -63,3 +63,46 @@ export async function runPresetReport({ presetId, filters = [] }) {
 
   return handleJsonResponse(response);
 }
+
+export async function fetchProgramGroups() {
+  const response = await fetch(`${API_BASE}/program-groups`);
+  return handleJsonResponse(response);
+}
+
+export async function createProgramGroup(payload) {
+  const response = await fetch(`${API_BASE}/program-groups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return handleJsonResponse(response);
+}
+
+export async function updateProgramGroup(id, payload) {
+  const response = await fetch(`${API_BASE}/program-groups/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return handleJsonResponse(response);
+}
+
+export async function deleteProgramGroup(id) {
+  const response = await fetch(`${API_BASE}/program-groups/${id}`, {
+    method: 'DELETE'
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
+  }
+}
+
+export async function previewProgramGroup(payload) {
+  const response = await fetch(`${API_BASE}/program-groups/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  return handleJsonResponse(response);
+}
