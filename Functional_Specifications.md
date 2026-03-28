@@ -68,6 +68,8 @@ The application is optimized for **capacity-building, institutional-development,
 
 The app should be source-driven. Each source gets an adapter, metadata profile, and capability flags.
 
+Local source documentation index: `docs/Reference_Documentation/README.md` (required starting point for source-related development/debugging).
+
 ### 4.1 Urban Institute Education Data API
 
 Use as the **primary public institutional data API** for IPEDS-derived and related higher-ed data. Urban documents direct API access, JSON responses, and summary endpoints from the same documentation surface.
@@ -1391,6 +1393,16 @@ NIH explicitly recommends roughly one request per second and limiting large jobs
 ### 28.5 Treat College Scorecard as complementary, not redundant
 
 It complements IPEDS/Urban for cost, aid, debt, and outcomes surfaces.
+
+### 28.6 Documentation-first implementation requirement
+
+For any feature development or debugging that involves a source adapter, source-backed indicator, eligibility extraction input, or report calculation:
+
+1. Developers must consult `docs/Reference_Documentation/README.md` first.
+2. Developers must review the relevant source-specific local documentation before code changes.
+3. Any newly discovered source constraints/caveats must be added back into the source documentation corpus as part of the same change.
+
+This requirement exists to keep adapter behavior, registry mappings, and reporting logic synchronized with source semantics over time.
 
 ---
 

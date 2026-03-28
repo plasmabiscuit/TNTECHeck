@@ -35,6 +35,14 @@ Prefer implementing the architecture described there over ad hoc shortcuts.
 6. eligibility editor/evaluator
 7. richer exports
 
+
+## Documentation-first rule for source work
+Before developing or debugging any feature that touches a data source, adapter, indicator mapping, or source-backed report:
+1. Start at `docs/Reference_Documentation/README.md`.
+2. Open the relevant source folder documentation before changing code.
+3. Validate fields/constraints/caveats against source docs and preserve provenance in outputs/tests.
+4. If docs are missing or outdated, update documentation in the same change as the code fix.
+
 ## Coding expectations
 - Make the smallest coherent change.
 - Add or update tests for anything affecting adapters, registries, eligibility logic, or reporting.
