@@ -5,6 +5,7 @@ import { PresetCatalogPage } from './pages/PresetCatalogPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { ProgramGroupsPage } from './pages/ProgramGroupsPage';
 import { ReportWorkspacePage } from './pages/ReportWorkspacePage';
+import { ComparisonGroupsPage } from './pages/ComparisonGroupsPage';
 
 export function App() {
   return (
@@ -22,10 +23,7 @@ export function App() {
           element={<PlaceholderPage title="Eligibility Profile Editor" description="Create and update editable eligibility templates with criteria and manual checks." />}
         />
         <Route path="/program-groups" element={<ProgramGroupsPage />} />
-        <Route
-          path="/comparison-groups"
-          element={<PlaceholderPage title="Comparison Group Manager" description="Maintain reusable peer and benchmark institution groups for TTU comparisons." />}
-        />
+        <Route path="/comparison-groups" element={<ComparisonGroupsPage />} />
         <Route
           path="/funding-history"
           element={<PlaceholderPage title="Funding History" description="Review sponsor-specific NIH, NSF, and NIFA historical award context for TTU." />}
