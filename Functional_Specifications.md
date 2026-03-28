@@ -1,4 +1,4 @@
-# TECheck - TTU Grant Data Workbench
+# TNTECheck - TTU Grant Data Workbench
 
 ## Functional Specification
 
