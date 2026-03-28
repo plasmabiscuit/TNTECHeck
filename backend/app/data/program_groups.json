@@ -2,13 +2,21 @@
   {
     "id": "biology_cip_group",
     "label": "Biology and Biomedical Sciences",
+    "scope": "strict",
     "description": "Program group used for sponsor-facing biology completions tables.",
-    "cip_codes": ["26", "26.01", "26.02", "26.10"]
+    "cip_codes": ["26.0101", "26.0202", "26.1001"],
+    "award_levels": ["bachelor", "master", "doctorate"],
+    "notes": "Seed example aligned to CIP-based biology completions contexts.",
+    "version": 1
   },
   {
     "id": "engineering_cip_group",
     "label": "Engineering",
+    "scope": "broad",
     "description": "Core engineering programs for institutional capacity narratives.",
-    "cip_codes": ["14", "14.01", "14.07"]
+    "cip_codes": ["14.0101", "14.0701", "14.0801"],
+    "award_levels": ["bachelor", "master", "doctorate"],
+    "notes": "Seed example for broad engineering capacity views.",
+    "version": 1
   }
 ]

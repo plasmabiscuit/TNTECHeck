@@ -60,3 +60,14 @@ def load_registry(name: str, model_type: type[BaseModel], *, data_dir: Path = BA
             ) from exc
 
     return items
+
+
+def save_registry(
+    name: str,
+    items: list[BaseModel],
+    *,
+    data_dir: Path = BASE_DATA_DIR,
+) -> None:
+    registry_path = data_dir / f"{name}.json"
+    payload = [item.model_dump(mode="json") for item in items]
+    registry_path.write_text(f"{json.dumps(payload, indent=2)}\n")

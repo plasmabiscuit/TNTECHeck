@@ -3,6 +3,7 @@ import { AppLayout } from './components/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { PresetCatalogPage } from './pages/PresetCatalogPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { ProgramGroupsPage } from './pages/ProgramGroupsPage';
 import { ReportWorkspacePage } from './pages/ReportWorkspacePage';
 
 export function App() {
@@ -20,10 +21,7 @@ export function App() {
           path="/eligibility-profiles"
           element={<PlaceholderPage title="Eligibility Profile Editor" description="Create and update editable eligibility templates with criteria and manual checks." />}
         />
-        <Route
-          path="/program-groups"
-          element={<PlaceholderPage title="Program Group Manager" description="Define CIP-based program groups for strict, broad, and custom reporting contexts." />}
-        />
+        <Route path="/program-groups" element={<ProgramGroupsPage />} />
         <Route
           path="/comparison-groups"
           element={<PlaceholderPage title="Comparison Group Manager" description="Maintain reusable peer and benchmark institution groups for TTU comparisons." />}
