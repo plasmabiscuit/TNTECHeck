@@ -1,0 +1,14 @@
+[
+  {
+    "id": "tn_public_peers",
+    "label": "Tennessee Public Peers",
+    "description": "State-level public peers used for benchmark views.",
+    "institution_unitids": [220978, 221759, 221838]
+  },
+  {
+    "id": "appalachian_masters",
+    "label": "Appalachian Master's Institutions",
+    "description": "Regional comparison institutions for capacity proposals.",
+    "institution_unitids": [199193, 203517, 211644]
+  }
+]

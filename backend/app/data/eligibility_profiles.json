@@ -1,0 +1,26 @@
+[
+  {
+    "id": "nih_area_starting_profile",
+    "label": "NIH AREA Starting Profile",
+    "description": "Editable starting criteria for institutional research environment strength.",
+    "criteria": [
+      {
+        "id": "criterion_pell_share",
+        "label": "Pell share meets threshold",
+        "indicator_id": "pell_share",
+        "operator": ">=",
+        "threshold": 0.25,
+        "editable": true
+      },
+      {
+        "id": "criterion_nih_activity",
+        "label": "Existing NIH activity above floor",
+        "indicator_id": "nih_award_count",
+        "operator": ">=",
+        "threshold": 1,
+        "editable": true
+      }
+    ],
+    "provenance_notes": "Template only; final NOFO interpretation requires analyst review."
+  }
+]

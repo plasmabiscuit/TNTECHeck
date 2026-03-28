@@ -1,0 +1,28 @@
+[
+  {
+    "id": "institutional_profile_core",
+    "label": "Institutional Profile (Core)",
+    "sponsor_context": ["NIH", "NSF", "USDA"],
+    "description": "TTU-first institutional profile with enrollment and equity baseline metrics.",
+    "sections": [
+      {
+        "indicator_ids": ["headcount_total", "pell_share"],
+        "program_group_ids": [],
+        "comparison_group_id": "tn_public_peers"
+      }
+    ]
+  },
+  {
+    "id": "biology_capacity_snapshot",
+    "label": "Biology Capacity Snapshot",
+    "sponsor_context": ["NIH", "NSF"],
+    "description": "Program-group view emphasizing biology completions and research activity context.",
+    "sections": [
+      {
+        "indicator_ids": ["nih_award_count"],
+        "program_group_ids": ["biology_cip_group"],
+        "comparison_group_id": "appalachian_masters"
+      }
+    ]
+  }
+]
