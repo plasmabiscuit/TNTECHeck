@@ -16,13 +16,18 @@ Next additions to reach strong coverage:
 
 ### NIFA Data Gateway source pack
 
-Create `docs/Reference_Documentation/NIFADataGateway/` with:
+✅ Completed on March 28, 2026 with:
 
 - `README.md` (scope, adapter use, required pre-dev checks)
 - endpoint/filter inventory
 - field definitions used in TNTECheck outputs
 - project/award status and fiscal-year handling notes
 - known inconsistencies + fallback behavior guidance
+
+Remaining NIFA follow-ups:
+- Add `Implementation_Notes.md` after adapter request/retry strategy is finalized.
+- Add `Refresh_SOP.md` once operational refresh cadence is documented.
+- Add the “Advanced Search Data Element and Values Key” artifact when it is directly accessible from official sources.
 
 ## Priority 2 (high-value structure improvements)
 

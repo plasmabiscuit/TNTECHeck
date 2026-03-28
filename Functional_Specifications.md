@@ -1,4 +1,4 @@
-# TNTECheck - TTU Grant Data Workbench
+# TNTECheck - Tennessee Tech Grant Data Workbench
 
 ## Functional Specification
 
@@ -10,7 +10,7 @@
 
 ## 1. Purpose
 
-Build a no-auth internal web application that gives proposal developers and analysts a **TTU-preconfigured** interface for institutional data retrieval, comparison, summarization, export, and proposal-ready reporting.
+Build a no-auth internal web application that gives proposal developers and analysts a **Tennessee Tech preconfigured** interface for institutional data retrieval, comparison, summarization, export, and proposal-ready reporting.
 
 The application is optimized for **capacity-building, institutional-development, infrastructure, and graduate or undergraduate-focused research proposals**, where recurring data needs usually include institutional profile, student demographics, equity disaggregation, field/CIP completions, retention/graduation, research-capacity indicators, and prior sponsor funding history. Public source coverage should center on Urban’s Education Data API, IPEDS/NCES, College Scorecard, NIH RePORTER, NSF Award Search, and USDA/NIFA Data Gateway. Urban’s API returns JSON and supports both raw endpoint access and summary endpoints; IPEDS officially exposes tools/downloads such as Data Explorer, Compare Institutions, Custom Data Files, Complete Data Files, and Access Database downloads rather than a normal API-first public interface. NIH RePORTER exposes award/project data via API; NSF exposes an Award Search API; NIFA exposes public award/project information through the Data Gateway.
 
