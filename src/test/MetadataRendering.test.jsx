@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from '../App';
 
@@ -44,27 +44,43 @@ describe('Metadata-backed pages', () => {
 
   it('renders preset catalog metadata and supports retry on error', async () => {
     window.history.pushState({}, '', '/preset-catalog');
-    let calls = 0;
+    let presetCalls = 0;
 
     fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (url) => {
-      if (url === '/api/metadata/presets') {
-        calls += 1;
-        if (calls === 1) {
+      if (url === '/api/meta/presets') {
+        presetCalls += 1;
+        if (presetCalls === 1) {
           return new Response('Service Unavailable', { status: 503 });
         }
 
         return okJson({
-          presets: [
+          data: [
             {
               id: 'nih-eligibility-snapshot',
-              name: 'NIH Eligibility Snapshot',
-              category: 'Eligibility Worksheet',
-              funderTags: ['NIH'],
+              label: 'NIH Eligibility Snapshot',
+              sponsor_context: ['NIH'],
               description: 'Initial NIH-oriented readiness checks for TTU.',
-              requiredSources: ['Urban/IPEDS', 'NIH RePORTER']
+              sections: [{ indicator_ids: ['pell_share'], program_group_ids: [], comparison_group_id: null }]
             }
           ]
         });
+      }
+
+      if (url === '/api/meta/indicators') {
+        return okJson({
+          data: [
+            {
+              id: 'pell_share',
+              label: 'Pell Share',
+              category: 'Student Success',
+              source_ids: ['urban_ipeds']
+            }
+          ]
+        });
+      }
+
+      if (url === '/api/meta/sources') {
+        return okJson({ data: [{ id: 'urban_ipeds', name: 'Urban/IPEDS' }] });
       }
 
       if (url === '/api/metadata/workbench') {
@@ -83,7 +99,7 @@ describe('Metadata-backed pages', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Service Unavailable');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
-    expect(await screen.findByText('NIH Eligibility Snapshot')).toBeInTheDocument();
-    expect(screen.getByText('Eligibility Worksheet')).toBeInTheDocument();
+    expect((await screen.findAllByText('NIH Eligibility Snapshot')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Student Success').length).toBeGreaterThan(0);
   });
 });

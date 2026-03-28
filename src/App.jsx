@@ -3,6 +3,7 @@ import { AppLayout } from './components/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { PresetCatalogPage } from './pages/PresetCatalogPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { ReportWorkspacePage } from './pages/ReportWorkspacePage';
 
 export function App() {
   return (
@@ -10,10 +11,7 @@ export function App() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/preset-catalog" element={<PresetCatalogPage />} />
-        <Route
-          path="/report-workspace"
-          element={<PlaceholderPage title="Report Workspace" description="Run presets, inspect outputs, and export proposal-ready artifacts." />}
-        />
+        <Route path="/report-workspace" element={<ReportWorkspacePage />} />
         <Route
           path="/explore-builder"
           element={<PlaceholderPage title="Explore Builder" description="Build ad hoc indicator queries using normalized metadata and comparison controls." />}

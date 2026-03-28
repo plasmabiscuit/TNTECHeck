@@ -9,12 +9,44 @@ async function handleJsonResponse(response) {
   return response.json();
 }
 
+async function fetchMetaRegistry(name) {
+  const response = await fetch(`${API_BASE}/meta/${name}`);
+  return handleJsonResponse(response);
+}
+
 export async function fetchWorkbenchMetadata() {
   const response = await fetch(`${API_BASE}/metadata/workbench`);
   return handleJsonResponse(response);
 }
 
-export async function fetchPresetCatalog() {
-  const response = await fetch(`${API_BASE}/metadata/presets`);
-  return handleJsonResponse(response);
+export async function fetchPresetCatalogMetadata() {
+  const [presets, indicators, sources] = await Promise.all([
+    fetchMetaRegistry('presets'),
+    fetchMetaRegistry('indicators'),
+    fetchMetaRegistry('sources')
+  ]);
+
+  return {
+    presets: presets.data,
+    indicators: indicators.data,
+    sources: sources.data
+  };
+}
+
+export async function fetchWorkspacePresetMetadata() {
+  const [presets, indicators, sources, comparisonGroups, programGroups] = await Promise.all([
+    fetchMetaRegistry('presets'),
+    fetchMetaRegistry('indicators'),
+    fetchMetaRegistry('sources'),
+    fetchMetaRegistry('comparison-groups'),
+    fetchMetaRegistry('program-groups')
+  ]);
+
+  return {
+    presets: presets.data,
+    indicators: indicators.data,
+    sources: sources.data,
+    comparisonGroups: comparisonGroups.data,
+    programGroups: programGroups.data
+  };
 }
