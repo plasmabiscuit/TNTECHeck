@@ -1,4 +1,4 @@
-# TECheck - TTU Grant Data Workbench — AGENTS.md
+# TNTECheck - TTU Grant Data Workbench — AGENTS.md
 
 ## Mission
 Build a no-auth, TTU-first institutional analytics application for grant-development support.
