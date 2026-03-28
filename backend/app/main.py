@@ -15,9 +15,12 @@ from app.models import (
     IndicatorMeta,
     MetaEnvelope,
     PresetMeta,
+    ReportRunRequest,
+    ReportRunResult,
     ProgramGroupMeta,
     SourceMeta,
 )
+from app.reporting import run_preset_report
 from app.registry import BASE_DATA_DIR, RegistryError, load_registry
 
 
@@ -73,7 +76,12 @@ def _load(name: str, model_type: type[BaseModel], *, data_dir: Path = BASE_DATA_
 @app.exception_handler(RegistryError)
 async def handle_registry_error(_: Request, exc: RegistryError) -> JSONResponse:
     payload = ErrorResponse(error=ErrorBody(code=exc.code, message=exc.message, details=exc.details))
-    return JSONResponse(status_code=500, content=payload.model_dump(mode="json"))
+    status_map = {
+        "PRESET_NOT_FOUND": 404,
+        "INVALID_FILTER": 422,
+        "PRESET_NOT_IMPLEMENTED": 422,
+    }
+    return JSONResponse(status_code=status_map.get(exc.code, 500), content=payload.model_dump(mode="json"))
 
 
 @app.get("/api/meta/sources", response_model=SourceResponse, responses={500: {"model": ErrorResponse}})
@@ -117,3 +125,47 @@ def get_docs() -> dict:
 )
 def get_eligibility_profiles() -> dict:
     return _envelope(_load("eligibility_profiles", EligibilityProfileMeta))
+
+
+@app.post(
+    "/api/report/run",
+    response_model=ReportRunResult,
+    responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+)
+def run_report(request: ReportRunRequest) -> ReportRunResult:
+    presets = {item.id: item for item in _load("presets", PresetMeta)}
+    if request.preset_id not in presets:
+        raise RegistryError(
+            code="PRESET_NOT_FOUND",
+            message=f"Preset '{request.preset_id}' was not found.",
+            details={"preset_id": request.preset_id},
+        )
+
+    known_program_group_ids = {item.id for item in _load("program_groups", ProgramGroupMeta)}
+    known_comparison_group_ids = {item.id for item in _load("comparison_groups", ComparisonGroupMeta)}
+
+    for filter_item in request.filters.items:
+        if filter_item.field == "program_group_id" and filter_item.operator == "eq":
+            if filter_item.value not in known_program_group_ids:
+                raise RegistryError(
+                    code="INVALID_FILTER",
+                    message="Invalid program_group_id filter value.",
+                    details={"field": "program_group_id", "value": filter_item.value},
+                )
+
+        if filter_item.field == "comparison_group_id" and filter_item.operator == "eq":
+            if filter_item.value not in known_comparison_group_ids:
+                raise RegistryError(
+                    code="INVALID_FILTER",
+                    message="Invalid comparison_group_id filter value.",
+                    details={"field": "comparison_group_id", "value": filter_item.value},
+                )
+
+    try:
+        return run_preset_report(request)
+    except NotImplementedError as exc:
+        raise RegistryError(
+            code="PRESET_NOT_IMPLEMENTED",
+            message=str(exc),
+            details={"preset_id": request.preset_id},
+        ) from exc

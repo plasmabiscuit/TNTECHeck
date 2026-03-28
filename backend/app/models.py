@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, HttpUrl
@@ -95,3 +96,84 @@ class EligibilityProfileMeta(BaseModel):
 class DataResponse(BaseModel):
     data: list[Any]
     meta: MetaEnvelope
+
+
+class QueryFilter(BaseModel):
+    field: str
+    operator: Literal["eq", "neq", "in", "not_in", "gte", "lte", "between", "contains"]
+    value: str | int | float | list[str] | list[int] | list[float]
+
+
+class ReportFilters(BaseModel):
+    items: list[QueryFilter] = Field(default_factory=list)
+
+
+class ReportRunRequest(BaseModel):
+    preset_id: str
+    filters: ReportFilters = Field(default_factory=ReportFilters)
+
+
+class KpiResult(BaseModel):
+    id: str
+    label: str
+    value: float | int
+    unit: str | None = None
+    trend: Literal["up", "down", "flat"] | None = None
+    context_note: str | None = None
+
+
+class TableColumn(BaseModel):
+    key: str
+    label: str
+    kind: Literal["dimension", "metric"] = "metric"
+    unit: str | None = None
+
+
+class TableRow(BaseModel):
+    cells: dict[str, Any]
+
+
+class TableSection(BaseModel):
+    id: str
+    label: str
+    columns: list[TableColumn]
+    rows: list[TableRow]
+
+
+class ChartPoint(BaseModel):
+    x: str | int | float
+    y: int | float
+
+
+class ChartResult(BaseModel):
+    id: str
+    label: str
+    chart_type: Literal["bar", "line", "none"] = "none"
+    x_key: str | None = None
+    y_key: str | None = None
+    points: list[ChartPoint] = Field(default_factory=list)
+    note: str | None = None
+
+
+class SourceNote(BaseModel):
+    source_id: str
+    source_name: str
+    note: str
+    used_summary_endpoint: bool = False
+    partial_failure: bool = False
+
+
+class ReportRunResult(BaseModel):
+    run_id: str
+    preset_id: str
+    preset_label: str
+    status: Literal["completed", "partial", "failed"]
+    generated_at_utc: datetime
+    institution_id: str
+    filters: ReportFilters
+    kpis: list[KpiResult] = Field(default_factory=list)
+    tables: list[TableSection] = Field(default_factory=list)
+    charts: list[ChartResult] = Field(default_factory=list)
+    source_notes: list[SourceNote] = Field(default_factory=list)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)

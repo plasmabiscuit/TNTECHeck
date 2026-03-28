@@ -50,3 +50,16 @@ export async function fetchWorkspacePresetMetadata() {
     programGroups: programGroups.data
   };
 }
+
+export async function runPresetReport({ presetId, filters = [] }) {
+  const response = await fetch(`${API_BASE}/report/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      preset_id: presetId,
+      filters: { items: filters }
+    })
+  });
+
+  return handleJsonResponse(response);
+}

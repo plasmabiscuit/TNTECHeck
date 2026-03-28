@@ -85,6 +85,41 @@ describe('Preset catalog filtering and launch flow', () => {
       if (url === '/api/metadata/workbench') {
         return okJson({ quickLinks: [], sourceHealth: [], latestYearBySource: [] });
       }
+      if (url === '/api/report/run') {
+        return okJson({
+          run_id: 'run_test_001',
+          preset_id: 'nih-bio-snapshot',
+          preset_label: 'NIH Biology Snapshot',
+          status: 'completed',
+          generated_at_utc: '2026-03-28T00:00:00Z',
+          institution_id: '221847',
+          filters: { items: [] },
+          kpis: [{ id: 'nih_award_count', label: 'NIH Awards', value: 11, unit: 'awards' }],
+          tables: [
+            {
+              id: 'awards_table',
+              label: 'Awards by Group',
+              columns: [
+                { key: 'group', label: 'Group' },
+                { key: 'nih_award_count', label: 'NIH Awards' }
+              ],
+              rows: [{ cells: { group: 'TTU', nih_award_count: 11 } }]
+            }
+          ],
+          charts: [{ id: 'awards_chart', label: 'Awards', chart_type: 'none', points: [] }],
+          source_notes: [
+            {
+              source_id: 'nih_reporter',
+              source_name: 'NIH RePORTER',
+              note: 'Stub result for workspace flow.',
+              used_summary_endpoint: false,
+              partial_failure: false
+            }
+          ],
+          provenance: { source: 'nih_reporter', stub: true },
+          warnings: ['stub data']
+        });
+      }
 
       return new Response('Not Found', { status: 404 });
     });
@@ -136,8 +171,8 @@ describe('Preset catalog filtering and launch flow', () => {
     expect(await screen.findByRole('heading', { name: 'Report Workspace' })).toBeInTheDocument();
     expect(screen.getAllByText('Biology-focused proposal profile.').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/NIH RePORTER/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/TN Public Peers/)).toBeInTheDocument();
-    expect(screen.getByText(/Biology CIP Group/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Next Query Controls (Placeholder)' })).toBeInTheDocument();
+    expect(screen.getByText(/KPI Snapshot/)).toBeInTheDocument();
+    expect(screen.getByText(/Run Provenance/)).toBeInTheDocument();
+    expect(screen.getByText(/Stub result for workspace flow./)).toBeInTheDocument();
   });
 });

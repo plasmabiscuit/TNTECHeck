@@ -147,3 +147,45 @@ button {
 select {
   padding: 0.35rem;
 }
+
+.kpi-value {
+  font-size: 1.6rem;
+  margin: 0.25rem 0;
+}
+
+.chart-preview-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.chart-preview-list li {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 11rem 1fr 5rem;
+  align-items: center;
+}
+
+.chart-preview-track {
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+  height: 0.7rem;
+}
+
+.chart-preview-bar {
+  display: block;
+  height: 100%;
+  background: #2563eb;
+}
+
+pre {
+  max-height: 220px;
+  overflow: auto;
+  background: #f8fafc;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.6rem;
+}
