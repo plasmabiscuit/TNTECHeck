@@ -6,13 +6,13 @@ This backlog lists missing or weak documentation needed to keep source adapters 
 
 ### NSF Award Search source pack
 
-Create `docs/Reference_Documentation/NSFAwardSearch/` with:
+Initial source pack now exists under `docs/Reference_Documentation/NSFAwardSearch/` with official-source links, query/field notes, templates, and TODO tracking.
 
-- `README.md` (scope, adapter use, required pre-dev checks)
-- endpoint + parameter inventory
-- common query templates for TTU institution-level award history
-- response field catalog with normalization notes
-- paging/rate-limit/error handling guidance
+Next additions to reach strong coverage:
+
+- full API field -> TNTECheck normalized crosswalk
+- explicit retry/backoff and partial-failure adapter notes
+- refresh SOP for schema/doc change monitoring
 
 ### NIFA Data Gateway source pack
 
