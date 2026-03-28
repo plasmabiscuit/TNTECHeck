@@ -1,29 +1,66 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../components/LoadingState';
 import { ErrorState } from '../components/ErrorState';
 import { useAsyncData } from '../components/useAsyncData';
-import { fetchWorkspacePresetMetadata } from '../services/api';
+import { fetchWorkspacePresetMetadata, runPresetReport } from '../services/api';
+
+function ChartPreview({ chart }) {
+  if (!chart || chart.points.length === 0 || chart.chart_type === 'none') {
+    return <p className="muted">No chart data is available for this report run.</p>;
+  }
+
+  const maxY = Math.max(...chart.points.map((point) => point.y), 1);
+
+  return (
+    <>
+      <p className="muted">{chart.note}</p>
+      <ul className="chart-preview-list">
+        {chart.points.map((point) => (
+          <li key={point.x}>
+            <span>{point.x}</span>
+            <div className="chart-preview-track" aria-hidden="true">
+              <span className="chart-preview-bar" style={{ width: `${(point.y / maxY) * 100}%` }} />
+            </div>
+            <strong>{point.y}</strong>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
 
 export function ReportWorkspacePage() {
   const [searchParams] = useSearchParams();
   const presetId = searchParams.get('presetId');
-  const { data, loading, error, retry } = useAsyncData(fetchWorkspacePresetMetadata);
 
-  const workspace = useMemo(() => {
-    if (!data || !presetId) {
+  const metadataState = useAsyncData(fetchWorkspacePresetMetadata);
+  const loadReport = useCallback(async () => {
+    if (!presetId) {
       return null;
     }
 
-    const preset = data.presets.find((item) => item.id === presetId);
+    return runPresetReport({
+      presetId,
+      filters: [{ field: 'comparison_group_id', operator: 'eq', value: 'tn_public_peers' }]
+    });
+  }, [presetId]);
+  const reportState = useAsyncData(loadReport);
+
+  const workspace = useMemo(() => {
+    if (!metadataState.data || !presetId) {
+      return null;
+    }
+
+    const preset = metadataState.data.presets.find((item) => item.id === presetId);
     if (!preset) {
       return { missing: true };
     }
 
-    const indicatorById = new Map(data.indicators.map((indicator) => [indicator.id, indicator]));
-    const sourceById = new Map(data.sources.map((source) => [source.id, source]));
-    const comparisonById = new Map(data.comparisonGroups.map((group) => [group.id, group]));
-    const programById = new Map(data.programGroups.map((group) => [group.id, group]));
+    const indicatorById = new Map(metadataState.data.indicators.map((indicator) => [indicator.id, indicator]));
+    const sourceById = new Map(metadataState.data.sources.map((source) => [source.id, source]));
+    const comparisonById = new Map(metadataState.data.comparisonGroups.map((group) => [group.id, group]));
+    const programById = new Map(metadataState.data.programGroups.map((group) => [group.id, group]));
 
     const indicatorIds = new Set(preset.sections.flatMap((section) => section.indicator_ids));
     const indicators = [...indicatorIds].map((indicatorId) => indicatorById.get(indicatorId)).filter(Boolean);
@@ -47,14 +84,18 @@ export function ReportWorkspacePage() {
       comparisonGroups,
       programGroups
     };
-  }, [data, presetId]);
+  }, [metadataState.data, presetId]);
 
-  if (loading) {
+  if (metadataState.loading || (presetId && reportState.loading)) {
     return <LoadingState label="Loading report workspace…" />;
   }
 
-  if (error) {
-    return <ErrorState message={error.message} onRetry={retry} />;
+  if (metadataState.error) {
+    return <ErrorState message={metadataState.error.message} onRetry={metadataState.retry} />;
+  }
+
+  if (reportState.error) {
+    return <ErrorState message={reportState.error.message} onRetry={reportState.retry} />;
   }
 
   if (!presetId) {
@@ -75,17 +116,17 @@ export function ReportWorkspacePage() {
     );
   }
 
-  if (!workspace) {
+  if (!workspace || !reportState.data) {
     return null;
   }
+
+  const primaryTable = reportState.data.tables[0];
+  const primaryChart = reportState.data.charts[0];
 
   return (
     <section>
       <h2>Report Workspace</h2>
-      <p>
-        Structured launch state for proposal development. Confirm metadata, required sources, and comparison/program
-        context before running query steps.
-      </p>
+      <p>One preset can now execute end-to-end and returns normalized KPI, table, chart preview, and provenance payloads.</p>
 
       <article className="panel">
         <h3>Preset Metadata</h3>
@@ -98,54 +139,86 @@ export function ReportWorkspacePage() {
         </p>
       </article>
 
-      <div className="grid-two">
-        <article className="panel">
-          <h3>Required Sources</h3>
-          <ul>
-            {workspace.requiredSources.map((source) => (
-              <li key={source.id}>
-                {source.name} <span className="muted">({source.id})</span>
-              </li>
-            ))}
-          </ul>
-        </article>
-
-        <article className="panel">
-          <h3>Supported Comparison / Program-Group Behavior</h3>
-          <p>
-            <strong>Comparison groups:</strong>{' '}
-            {workspace.comparisonGroups.length > 0
-              ? workspace.comparisonGroups.map((group) => group.label).join(', ')
-              : 'No preset comparison groups'}
-          </p>
-          <p>
-            <strong>Program groups:</strong>{' '}
-            {workspace.programGroups.length > 0
-              ? workspace.programGroups.map((group) => group.label).join(', ')
-              : 'No preset program-group mappings'}
-          </p>
-        </article>
-      </div>
-
       <article className="panel">
-        <h3>Next Query Controls (Placeholder)</h3>
-        <p className="muted">
-          Full report execution is not implemented yet. Use these controls as the coherent launch scaffolding for
-          upcoming query orchestration.
-        </p>
-        <div className="button-row">
-          <button type="button">Select section</button>
-          <button type="button">Review source readiness</button>
-          <button type="button">Run preview query</button>
+        <h3>KPI Snapshot</h3>
+        <div className="grid-two">
+          {reportState.data.kpis.map((kpi) => (
+            <div key={kpi.id} className="state-card">
+              <p className="muted">{kpi.label}</p>
+              <p className="kpi-value">
+                {kpi.value}
+                {kpi.unit === 'percent' ? '%' : ''}
+              </p>
+              {kpi.context_note ? <p className="muted">{kpi.context_note}</p> : null}
+            </div>
+          ))}
         </div>
       </article>
 
       <article className="panel">
-        <h3>Indicator Snapshot</h3>
+        <h3>{primaryTable?.label || 'Report Table'}</h3>
+        {primaryTable ? (
+          <table>
+            <thead>
+              <tr>
+                {primaryTable.columns.map((column) => (
+                  <th key={column.key}>{column.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {primaryTable.rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {primaryTable.columns.map((column) => (
+                    <td key={column.key}>{row.cells[column.key]}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="muted">No tabular result rows were returned for this preset run.</p>
+        )}
+      </article>
+
+      <article className="panel">
+        <h3>Chart Output</h3>
+        <ChartPreview chart={primaryChart} />
+      </article>
+
+      <div className="grid-two">
+        <article className="panel">
+          <h3>Source Notes</h3>
+          <ul>
+            {reportState.data.source_notes.map((note) => (
+              <li key={note.source_id}>
+                <strong>{note.source_name}</strong>: {note.note}
+              </li>
+            ))}
+          </ul>
+          {reportState.data.warnings.length > 0 ? (
+            <p className="muted">Warnings: {reportState.data.warnings.join(' | ')}</p>
+          ) : null}
+        </article>
+
+        <article className="panel">
+          <h3>Run Provenance</h3>
+          <p>
+            <strong>Run ID:</strong> {reportState.data.run_id}
+          </p>
+          <p>
+            <strong>Generated:</strong> {new Date(reportState.data.generated_at_utc).toLocaleString()}
+          </p>
+          <pre>{JSON.stringify(reportState.data.provenance, null, 2)}</pre>
+        </article>
+      </div>
+
+      <article className="panel">
+        <h3>Required Sources</h3>
         <ul>
-          {workspace.indicators.map((indicator) => (
-            <li key={indicator.id}>
-              <strong>{indicator.label}</strong> <span className="muted">({indicator.category})</span>
+          {workspace.requiredSources.map((source) => (
+            <li key={source.id}>
+              {source.name} <span className="muted">({source.id})</span>
             </li>
           ))}
         </ul>
