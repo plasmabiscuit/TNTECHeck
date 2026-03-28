@@ -47,7 +47,7 @@ class ProgramGroupMapping(BaseModel):
 class ProgramGroupRegistryEntry(RegistryBase):
     name: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    mappings: list[ProgramGroupMapping] = Field(default_factory=list)
+    mappings: list[ProgramGroupMapping] = Field(..., min_length=1)
 
 
 class ComparisonGroupRegistryEntry(RegistryBase):
