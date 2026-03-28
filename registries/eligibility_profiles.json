@@ -1,0 +1,22 @@
+[
+  {
+    "id": "capacity-template-v1",
+    "name": "Capacity Proposal Template",
+    "funder": "Cross-funder",
+    "program": "Institutional Capacity",
+    "version_label": "v1",
+    "effective_date": "2026-01-01",
+    "criteria": [
+      {
+        "id": "min-enrollment",
+        "label": "Minimum enrollment threshold",
+        "comparator": ">=",
+        "threshold": 5000,
+        "indicator_id": "student_enrollment_total",
+        "notes": "Editable threshold placeholder only."
+      }
+    ],
+    "manual_override_allowed": true,
+    "provenance_notes": "Template only. Does not represent final compliance determination."
+  }
+]

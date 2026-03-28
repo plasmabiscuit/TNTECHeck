@@ -1,0 +1,10 @@
+[
+  {
+    "id": "biology-related",
+    "name": "Biology Related Programs",
+    "description": "Program-group mapping for biology and biomed related CIP families.",
+    "mappings": [
+      { "cip_code": "26", "label": "Biological and Biomedical Sciences" }
+    ]
+  }
+]

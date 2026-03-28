@@ -1,0 +1,23 @@
+[
+  {
+    "id": "student_enrollment_total",
+    "name": "student_enrollment_total",
+    "label": "Total Enrollment",
+    "description": "Total headcount enrollment for the institution.",
+    "domain": "student_profile",
+    "source": "urban-ed-api",
+    "source_topic": "enrollment",
+    "source_variable": "enrollment_total",
+    "allowed_years": [2021, 2022, 2023],
+    "allowed_filters": ["year"],
+    "aggregation_modes": ["latest", "timeseries"],
+    "format": "integer",
+    "unit": "students",
+    "default_chart": "line",
+    "notes": "Sparse seed indicator.",
+    "provenance": "Urban Education Data API",
+    "is_public_source": true,
+    "supports_comparison": true,
+    "supports_disaggregation": false
+  }
+]

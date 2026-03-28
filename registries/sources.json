@@ -1,0 +1,22 @@
+[
+  {
+    "id": "urban-ed-api",
+    "name": "Urban Education Data API",
+    "description": "Primary TTU institutional and IPEDS-derived public data source.",
+    "adapter": "urban",
+    "base_url": "https://educationdata.urban.org",
+    "supports_summary_endpoints": true,
+    "supports_live_queries": true,
+    "status": "active"
+  },
+  {
+    "id": "nih-reporter",
+    "name": "NIH RePORTER",
+    "description": "Public NIH award and project information for TTU research-capacity context.",
+    "adapter": "nih_reporter",
+    "base_url": "https://api.reporter.nih.gov",
+    "supports_summary_endpoints": false,
+    "supports_live_queries": true,
+    "status": "active"
+  }
+]

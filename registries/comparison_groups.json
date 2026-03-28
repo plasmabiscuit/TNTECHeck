@@ -1,0 +1,8 @@
+[
+  {
+    "id": "tn-public-4yr",
+    "name": "Tennessee Public 4-Year Peers",
+    "description": "Seed benchmark comparison group for TTU context.",
+    "unitids": [221847, 221759]
+  }
+]

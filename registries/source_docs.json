@@ -1,0 +1,16 @@
+[
+  {
+    "id": "urban-api-docs",
+    "source": "urban-ed-api",
+    "label": "Urban Education Data API Docs",
+    "url": "https://educationdata.urban.org/documentation/",
+    "category": "api"
+  },
+  {
+    "id": "nih-reporter-api",
+    "source": "nih-reporter",
+    "label": "NIH RePORTER API Docs",
+    "url": "https://api.reporter.nih.gov/",
+    "category": "api"
+  }
+]

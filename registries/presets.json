@@ -1,0 +1,24 @@
+[
+  {
+    "id": "institutional-overview",
+    "title": "Institutional Overview",
+    "description": "TTU-first institutional summary for recurring capacity-oriented proposals.",
+    "funder_tags": ["cross-funder"],
+    "required_sources": ["urban-ed-api"],
+    "indicators": ["student_enrollment_total"],
+    "supports_comparison": true,
+    "supports_program_groups": false,
+    "supports_eligibility_profile": false
+  },
+  {
+    "id": "eligibility-worksheet",
+    "title": "Eligibility Worksheet",
+    "description": "Editable profile evaluator with manual override support.",
+    "funder_tags": ["cross-funder"],
+    "required_sources": ["urban-ed-api"],
+    "indicators": ["student_enrollment_total"],
+    "supports_comparison": false,
+    "supports_program_groups": false,
+    "supports_eligibility_profile": true
+  }
+]
