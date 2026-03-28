@@ -57,3 +57,7 @@ Before considering work complete, run the relevant subset of:
 - lint/format
 - any source smoke tests
 - build/type checks
+
+## TTU naming clarification
+- In this repository context, **TTU** refers to **Tennessee Technological University**.
+- Use **TN** / **Tennessee** in TTU-related examples, filters, mappings, and documentation unless explicitly quoting an external source verbatim.
