@@ -178,7 +178,7 @@ def test_discover_current_research_opportunities_paginates_and_filters(monkeypat
 
     # oppStatuses filter must be sent on every page
     for sc in search_calls:
-        assert sc["payload"].get("oppStatuses") == ["posted"]
+        assert sc["payload"].get("oppStatuses") == "posted"
 
 
 def test_search_page_size_default() -> None:
@@ -204,11 +204,11 @@ def test_discover_current_research_opportunities_sends_eligibility_codes(monkeyp
     mod.discover_current_research_opportunities(eligibility_codes=codes)
 
     search_calls = [c for c in calls if "search2" in c["url"]]
-    # One request per code — each carrying a single-element eligibilities list.
+    # One request per code — each carrying a single eligibility code.
     assert len(search_calls) == len(codes)
     sent_codes = [c["payload"]["eligibilities"] for c in search_calls]
-    assert [mod.ELIGIBILITY_CODE_PUBLIC_IHE] in sent_codes
-    assert [mod.ELIGIBILITY_CODE_UNRESTRICTED] in sent_codes
+    assert mod.ELIGIBILITY_CODE_PUBLIC_IHE in sent_codes
+    assert mod.ELIGIBILITY_CODE_UNRESTRICTED in sent_codes
 
 
 def test_discover_current_research_opportunities_deduplicates_across_codes(monkeypatch) -> None:
@@ -226,7 +226,7 @@ def test_discover_current_research_opportunities_deduplicates_across_codes(monke
     def fake_post_json(url, payload):
         nonlocal call_count
         call_count += 1
-        code = (payload.get("eligibilities") or [None])[0]
+        code = payload.get("eligibilities")
         if code == mod.ELIGIBILITY_CODE_PUBLIC_IHE:
             return {"data": {"hitCount": 2, "oppHits": [shared_hit, unique_hit]}}
         # Second code also returns the shared hit

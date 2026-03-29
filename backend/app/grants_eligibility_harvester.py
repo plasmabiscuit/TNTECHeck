@@ -65,6 +65,13 @@ DEFAULT_HARVEST_ELIGIBILITY_CODES: tuple[str, ...] = (
 DEFAULT_REQUEST_DELAY = 0.5
 
 
+def _encode_search2_multi(value: str | list[str] | tuple[str, ...]) -> str:
+    """Encode a search2 multi-value field as a pipe-delimited string."""
+    if isinstance(value, str):
+        return value
+    return "|".join(v for v in value if v)
+
+
 @dataclass
 class OpportunityPackageMetadata:
     opportunity_number: str
@@ -111,7 +118,7 @@ def _page_opportunities(
         payload: dict[str, Any] = {
             "rows": _page_size,
             "startRecordNum": start,
-            "oppStatuses": ["posted"],
+            "oppStatuses": _encode_search2_multi(["posted"]),
             **extra_payload,
         }
         data = _post_json(SEARCH2_URL, payload).get("data", {})
@@ -171,7 +178,7 @@ def discover_current_research_opportunities(
     seen_ids: set[int | str] = set()
     all_hits: list[dict[str, Any]] = []
     for code in eligibility_codes:
-        for hit in _page_opportunities({"eligibilities": [code]}, today, _page_size):
+        for hit in _page_opportunities({"eligibilities": _encode_search2_multi([code])}, today, _page_size):
             key = hit["id"] if hit["id"] is not None else hit["number"]
             if key in seen_ids:
                 continue
