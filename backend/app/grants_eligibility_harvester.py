@@ -4,6 +4,7 @@ import html
 import io
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -37,6 +38,30 @@ _ELIGIBILITY_PATTERNS = tuple(
 HEADING_PATTERN = re.compile(r"^(?:[A-Z][A-Z\s/&,-]{4,}|\d+(?:\.\d+)*\s+[A-Z].{0,120})$")
 
 _SEARCH_PAGE_SIZE = 100  # rows per search2 request — Grants.gov supports up to 1000
+
+# ---------------------------------------------------------------------------
+# Grants.gov search2 applicant-type eligibility codes
+# (two-digit zero-padded strings matching the grants.gov API vocabulary)
+# ---------------------------------------------------------------------------
+ELIGIBILITY_CODE_STATE_GOVTS = "00"               # State governments
+ELIGIBILITY_CODE_PUBLIC_IHE = "06"                # Public / State-controlled Institutions of Higher Education
+ELIGIBILITY_CODE_NONPROFITS_501C3 = "09"          # Nonprofits with 501(c)(3) IRS status (non-IHE)
+ELIGIBILITY_CODE_PRIVATE_IHE = "10"               # Private Institutions of Higher Education
+ELIGIBILITY_CODE_UNRESTRICTED = "99"              # Unrestricted (open to any entity type)
+
+# Default codes used by the GitHub Actions harvest workflow:
+# • Higher Education (public/state-controlled only)
+# • State governments
+# • Unrestricted opportunities
+DEFAULT_HARVEST_ELIGIBILITY_CODES: tuple[str, ...] = (
+    ELIGIBILITY_CODE_STATE_GOVTS,
+    ELIGIBILITY_CODE_PUBLIC_IHE,
+    ELIGIBILITY_CODE_UNRESTRICTED,
+)
+
+# Default inter-request delay (seconds) applied between per-opportunity calls
+# inside the harvest loop to respect grants.gov rate limits.
+DEFAULT_REQUEST_DELAY = 0.5
 
 
 @dataclass
@@ -72,8 +97,19 @@ def _to_iso_date(value: str | None) -> date | None:
     return None
 
 
-def discover_current_research_opportunities(*, _page_size: int = _SEARCH_PAGE_SIZE) -> list[dict[str, Any]]:
-    """Page through ALL currently-posted open opportunities via search2.
+def discover_current_research_opportunities(
+    *,
+    eligibility_codes: tuple[str, ...] | list[str] | None = None,
+    _page_size: int = _SEARCH_PAGE_SIZE,
+) -> list[dict[str, Any]]:
+    """Page through currently-posted open opportunities via search2.
+
+    When *eligibility_codes* is provided the search2 request is sent with an
+    ``eligibilities`` filter so the server returns only opportunities that list
+    at least one of those applicant-type codes.  Grants.gov uses zero-padded
+    two-digit strings (e.g. ``"06"`` for public IHEs, ``"99"`` for
+    unrestricted).  See :data:`DEFAULT_HARVEST_ELIGIBILITY_CODES` for the
+    recommended set.
 
     Pagination uses ``startRecordNum`` + ``data.hitCount``.  ``fetchOpportunity``
     is intentionally skipped here to avoid an O(N) per-hit REST call during
@@ -85,10 +121,15 @@ def discover_current_research_opportunities(*, _page_size: int = _SEARCH_PAGE_SI
     today = date.today()
 
     while True:
-        data = _post_json(
-            SEARCH2_URL,
-            {"rows": _page_size, "startRecordNum": start, "oppStatuses": ["posted"]},
-        ).get("data", {})
+        payload: dict[str, Any] = {
+            "rows": _page_size,
+            "startRecordNum": start,
+            "oppStatuses": ["posted"],
+        }
+        if eligibility_codes:
+            payload["eligibilities"] = list(eligibility_codes)
+
+        data = _post_json(SEARCH2_URL, payload).get("data", {})
         hits = data.get("oppHits", [])
         hit_count = int(data.get("hitCount") or 0)
 
@@ -261,18 +302,43 @@ def extract_eligibility_sections(instruction_text: str) -> list[dict[str, str]]:
     return deduped
 
 
-def harvest_current_research_eligibility(max_opportunities: int | None = None) -> dict[str, Any]:
-    opportunities = discover_current_research_opportunities()
+def harvest_current_research_eligibility(
+    max_opportunities: int | None = None,
+    eligibility_codes: tuple[str, ...] | list[str] | None = None,
+    request_delay: float = DEFAULT_REQUEST_DELAY,
+) -> dict[str, Any]:
+    """Harvest eligibility information for currently-posted opportunities.
+
+    Parameters
+    ----------
+    max_opportunities:
+        If provided, only the first *max_opportunities* discovered results are
+        processed.  Useful for smoke-testing or dry-run invocations.
+    eligibility_codes:
+        Applicant-type filter forwarded to :func:`discover_current_research_opportunities`.
+        Pass :data:`DEFAULT_HARVEST_ELIGIBILITY_CODES` (or any subset) to
+        restrict the harvest to opportunities relevant to higher-education,
+        state-government, 501(c)(3) nonprofit, and unrestricted applicants.
+        ``None`` (default) collects all currently-posted opportunities.
+    request_delay:
+        Seconds to sleep between successive per-opportunity HTTP calls (SOAP
+        metadata fetch + instruction download) so the harvester respects
+        grants.gov rate limits.  Defaults to :data:`DEFAULT_REQUEST_DELAY`.
+    """
+    opportunities = discover_current_research_opportunities(eligibility_codes=eligibility_codes)
     if max_opportunities is not None:
         opportunities = opportunities[:max_opportunities]
 
     harvested: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
 
-    for opportunity in opportunities:
+    for idx, opportunity in enumerate(opportunities):
         number = opportunity.get("number")
         if not number:
             continue
+        # Rate-limit: pause before each opportunity (skip delay before the first).
+        if idx > 0 and request_delay > 0:
+            time.sleep(request_delay)
         try:
             package = fetch_opportunity_package_metadata(number)
             if not package.instructions_url:
@@ -314,13 +380,17 @@ def harvest_current_research_eligibility(max_opportunities: int | None = None) -
         except (urllib.error.HTTPError, urllib.error.URLError, ValueError, ET.ParseError, RuntimeError) as exc:
             failures.append({"opportunity_number": number, "reason": str(exc)[:240]})
 
+    selection_criteria: dict[str, Any] = {
+        "opp_status": "posted",
+        "current_open_or_no_close_date": True,
+    }
+    if eligibility_codes is not None:
+        selection_criteria["eligibility_codes"] = list(eligibility_codes)
+
     return {
         "generated_at_utc": datetime.now(tz=UTC).isoformat(),
         "source": "grants.gov",
-        "selection_criteria": {
-            "opp_status": "posted",
-            "current_open_or_no_close_date": True,
-        },
+        "selection_criteria": selection_criteria,
         "records": harvested,
         "failures": failures,
     }
@@ -342,7 +412,10 @@ def write_harvest_output(payload: dict[str, Any], destination: Path | None = Non
 
 
 def main() -> None:
-    payload = harvest_current_research_eligibility()
+    payload = harvest_current_research_eligibility(
+        eligibility_codes=DEFAULT_HARVEST_ELIGIBILITY_CODES,
+        request_delay=DEFAULT_REQUEST_DELAY,
+    )
     output = write_harvest_output(payload)
     print(f"Wrote {len(payload['records'])} records to {output}")
     if payload["failures"]:

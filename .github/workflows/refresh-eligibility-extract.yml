@@ -1,0 +1,84 @@
+name: Refresh Eligibility Extract
+
+on:
+  # Run on the 1st of every month at 04:00 UTC
+  schedule:
+    - cron: "0 4 1 * *"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      max_opportunities:
+        description: "Maximum number of opportunities to process (leave blank for all)"
+        required: false
+        default: ""
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit the updated JSON back to the repo
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e "backend/[dev]"
+
+      - name: Run eligibility harvester
+        env:
+          MAX_OPPORTUNITIES: ${{ github.event.inputs.max_opportunities }}
+        run: |
+          python - <<'PYEOF'
+          import os, sys
+          sys.path.insert(0, "backend")
+
+          from app.grants_eligibility_harvester import (
+              DEFAULT_HARVEST_ELIGIBILITY_CODES,
+              DEFAULT_REQUEST_DELAY,
+              harvest_current_research_eligibility,
+              write_harvest_output,
+          )
+
+          raw = os.environ.get("MAX_OPPORTUNITIES", "").strip()
+          max_opps = int(raw) if raw else None
+
+          print(
+              f"Harvesting eligibility data"
+              f"{f' (max {max_opps} opportunities)' if max_opps else ' (all opportunities)'}..."
+          )
+          print(f"Eligibility codes filter: {list(DEFAULT_HARVEST_ELIGIBILITY_CODES)}")
+
+          payload = harvest_current_research_eligibility(
+              max_opportunities=max_opps,
+              eligibility_codes=DEFAULT_HARVEST_ELIGIBILITY_CODES,
+              request_delay=DEFAULT_REQUEST_DELAY,
+          )
+
+          output = write_harvest_output(payload)
+          print(f"Wrote {len(payload['records'])} records to {output}")
+          if payload["failures"]:
+              print(f"Encountered {len(payload['failures'])} failure(s) during harvesting:")
+              for f in payload["failures"]:
+                  print(f"  {f['opportunity_number']}: {f['reason']}")
+          PYEOF
+
+      - name: Commit updated extract (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/app/data/grants_gov_instruction_eligibility_extracts.json
+          if git diff --cached --quiet; then
+            echo "No changes to the eligibility extract — skipping commit."
+          else
+            git commit -m "chore(data): refresh grants.gov eligibility extract [skip ci]"
+            git push
+          fi
