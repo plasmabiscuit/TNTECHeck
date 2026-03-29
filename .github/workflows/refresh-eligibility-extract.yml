@@ -1,0 +1,57 @@
+name: Refresh Eligibility Extract
+
+on:
+  # Run on the 1st of every month at 04:00 UTC
+  schedule:
+    - cron: "0 4 1 * *"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      max_opportunities:
+        description: "Maximum number of opportunities to process (leave blank for all)"
+        required: false
+        default: ""
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit the updated JSON back to the repo
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e "backend/[dev]"
+
+      - name: Run eligibility harvester
+        env:
+          MAX_OPPORTUNITIES: ${{ github.event.inputs.max_opportunities }}
+        run: |
+          ARGS=""
+          if [ -n "$MAX_OPPORTUNITIES" ]; then
+            ARGS="--max-opportunities $MAX_OPPORTUNITIES"
+          fi
+          python -m app.grants_eligibility_harvester $ARGS
+        working-directory: backend
+
+      - name: Commit updated extract (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/app/data/grants_gov_instruction_eligibility_extracts.json
+          if git diff --cached --quiet; then
+            echo "No changes to the eligibility extract — skipping commit."
+          else
+            git commit -m "chore(data): refresh grants.gov eligibility extract [skip ci]"
+            git push
+          fi

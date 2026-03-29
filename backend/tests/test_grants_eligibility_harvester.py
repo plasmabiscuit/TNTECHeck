@@ -186,3 +186,236 @@ def test_search_page_size_default() -> None:
     import app.grants_eligibility_harvester as mod
 
     assert mod._SEARCH_PAGE_SIZE == 100
+
+
+def test_discover_current_research_opportunities_sends_eligibility_codes(monkeypatch) -> None:
+    """Each eligibility code must trigger its own search2 request (OR semantics)."""
+    import app.grants_eligibility_harvester as mod
+
+    calls: list[dict] = []
+
+    def fake_post_json(url, payload):
+        calls.append({"url": url, "payload": payload})
+        return {"data": {"hitCount": 0, "oppHits": []}}
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+
+    codes = [mod.ELIGIBILITY_CODE_PUBLIC_IHE, mod.ELIGIBILITY_CODE_UNRESTRICTED]
+    mod.discover_current_research_opportunities(eligibility_codes=codes)
+
+    search_calls = [c for c in calls if "search2" in c["url"]]
+    # One request per code — each carrying a single-element eligibilities list.
+    assert len(search_calls) == len(codes)
+    sent_codes = [c["payload"]["eligibilities"] for c in search_calls]
+    assert [mod.ELIGIBILITY_CODE_PUBLIC_IHE] in sent_codes
+    assert [mod.ELIGIBILITY_CODE_UNRESTRICTED] in sent_codes
+
+
+def test_discover_current_research_opportunities_deduplicates_across_codes(monkeypatch) -> None:
+    """An opportunity returned by two per-code searches must appear only once."""
+    import app.grants_eligibility_harvester as mod
+    from datetime import timedelta
+
+    tomorrow = (date.today() + timedelta(days=1)).strftime("%m/%d/%Y")
+
+    shared_hit = {"id": 1, "number": "X-1", "title": "G1", "oppStatus": "posted", "closeDate": tomorrow, "agencyCode": "NIH"}
+    unique_hit = {"id": 2, "number": "X-2", "title": "G2", "oppStatus": "posted", "closeDate": None, "agencyCode": "NSF"}
+
+    call_count = 0
+
+    def fake_post_json(url, payload):
+        nonlocal call_count
+        call_count += 1
+        code = (payload.get("eligibilities") or [None])[0]
+        if code == mod.ELIGIBILITY_CODE_PUBLIC_IHE:
+            return {"data": {"hitCount": 2, "oppHits": [shared_hit, unique_hit]}}
+        # Second code also returns the shared hit
+        return {"data": {"hitCount": 1, "oppHits": [shared_hit]}}
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+
+    results = mod.discover_current_research_opportunities(
+        eligibility_codes=[mod.ELIGIBILITY_CODE_PUBLIC_IHE, mod.ELIGIBILITY_CODE_STATE_GOVTS]
+    )
+
+    numbers = [r["number"] for r in results]
+    assert numbers.count("X-1") == 1, "Shared hit must appear exactly once"
+    assert "X-2" in numbers
+
+
+def test_discover_current_research_opportunities_no_eligibility_filter_by_default(monkeypatch) -> None:
+    """With no eligibility_codes, the 'eligibilities' key must NOT appear in the payload."""
+    import app.grants_eligibility_harvester as mod
+
+    calls: list[dict] = []
+
+    def fake_post_json(url, payload):
+        calls.append({"url": url, "payload": payload})
+        return {"data": {"hitCount": 0, "oppHits": []}}
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+
+    mod.discover_current_research_opportunities()
+
+    assert calls
+    assert "eligibilities" not in calls[0]["payload"]
+
+
+def test_harvest_respects_request_delay(monkeypatch) -> None:
+    """harvest_current_research_eligibility must sleep between per-opportunity calls."""
+    import app.grants_eligibility_harvester as mod
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(mod.time, "sleep", lambda s: sleep_calls.append(s))
+
+    def fake_post_json(url, payload):
+        if "search2" in url:
+            return {
+                "data": {
+                    "hitCount": 2,
+                    "oppHits": [
+                        {"id": 1, "number": "X-1", "title": "G1", "oppStatus": "posted", "closeDate": None},
+                        {"id": 2, "number": "X-2", "title": "G2", "oppStatus": "posted", "closeDate": None},
+                    ],
+                }
+            }
+        return {"data": {}}
+
+    def fake_fetch_metadata(number):
+        return mod.OpportunityPackageMetadata(
+            opportunity_number=number,
+            funding_opportunity_title="Test",
+            package_id=None,
+            offering_agency=None,
+            instructions_url=None,
+        )
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+    monkeypatch.setattr(mod, "fetch_opportunity_package_metadata", fake_fetch_metadata)
+
+    mod.harvest_current_research_eligibility(request_delay=0.25)
+
+    # Two opportunities → one inter-opportunity sleep (before the second)
+    assert len(sleep_calls) == 1
+    assert sleep_calls[0] == 0.25
+
+
+def test_harvest_no_delay_for_single_opportunity(monkeypatch) -> None:
+    """With a single opportunity, no sleep call should be made."""
+    import app.grants_eligibility_harvester as mod
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(mod.time, "sleep", lambda s: sleep_calls.append(s))
+
+    def fake_post_json(url, payload):
+        if "search2" in url:
+            return {
+                "data": {
+                    "hitCount": 1,
+                    "oppHits": [
+                        {"id": 1, "number": "X-1", "title": "G1", "oppStatus": "posted", "closeDate": None},
+                    ],
+                }
+            }
+        return {"data": {}}
+
+    def fake_fetch_metadata(number):
+        return mod.OpportunityPackageMetadata(
+            opportunity_number=number,
+            funding_opportunity_title="Test",
+            package_id=None,
+            offering_agency=None,
+            instructions_url=None,
+        )
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+    monkeypatch.setattr(mod, "fetch_opportunity_package_metadata", fake_fetch_metadata)
+
+    mod.harvest_current_research_eligibility(request_delay=1.0)
+
+    assert sleep_calls == []
+
+
+def test_harvest_selection_criteria_includes_eligibility_codes(monkeypatch) -> None:
+    """When eligibility_codes are supplied they must appear in selection_criteria output."""
+    import app.grants_eligibility_harvester as mod
+
+    monkeypatch.setattr(mod, "_post_json", lambda url, payload: {"data": {"hitCount": 0, "oppHits": []}})
+
+    codes = [mod.ELIGIBILITY_CODE_STATE_GOVTS, mod.ELIGIBILITY_CODE_PUBLIC_IHE]
+    result = mod.harvest_current_research_eligibility(eligibility_codes=codes, request_delay=0)
+
+    assert result["selection_criteria"]["eligibility_codes"] == codes
+
+
+def test_harvest_selection_criteria_omits_eligibility_codes_when_none(monkeypatch) -> None:
+    """When eligibility_codes is None, selection_criteria must NOT include the key."""
+    import app.grants_eligibility_harvester as mod
+
+    monkeypatch.setattr(mod, "_post_json", lambda url, payload: {"data": {"hitCount": 0, "oppHits": []}})
+
+    result = mod.harvest_current_research_eligibility(request_delay=0)
+
+    assert "eligibility_codes" not in result["selection_criteria"]
+
+
+def test_default_harvest_eligibility_codes_contains_expected_codes() -> None:
+    """DEFAULT_HARVEST_ELIGIBILITY_CODES must contain state govts, public IHE, and unrestricted."""
+    import app.grants_eligibility_harvester as mod
+
+    codes = set(mod.DEFAULT_HARVEST_ELIGIBILITY_CODES)
+    assert mod.ELIGIBILITY_CODE_STATE_GOVTS in codes       # state governments
+    assert mod.ELIGIBILITY_CODE_PUBLIC_IHE in codes        # public / state-controlled IHE
+    assert mod.ELIGIBILITY_CODE_UNRESTRICTED in codes      # unrestricted
+    # private IHE and non-IHE 501(c)(3) are intentionally excluded from defaults
+    assert mod.ELIGIBILITY_CODE_PRIVATE_IHE not in codes
+    assert mod.ELIGIBILITY_CODE_NONPROFITS_501C3 not in codes
+
+
+
+def test_main_cli_max_opportunities(monkeypatch) -> None:
+    """main() must pass --max-opportunities N through to the harvester."""
+    import sys
+    import app.grants_eligibility_harvester as mod
+
+    harvested_kwargs: list[dict] = []
+
+    def fake_harvest(**kwargs):
+        harvested_kwargs.append(kwargs)
+        return {"generated_at_utc": "x", "records": [], "failures": [], "source": "x", "selection_criteria": {}}
+
+    def fake_write(payload, destination=None):
+        from pathlib import Path
+        return Path("/tmp/fake.json")
+
+    monkeypatch.setattr(mod, "harvest_current_research_eligibility", fake_harvest)
+    monkeypatch.setattr(mod, "write_harvest_output", fake_write)
+    monkeypatch.setattr(sys, "argv", ["grants_eligibility_harvester", "--max-opportunities", "5"])
+
+    mod.main()
+
+    assert harvested_kwargs[0]["max_opportunities"] == 5
+
+
+def test_main_cli_no_max_opportunities(monkeypatch) -> None:
+    """main() with no --max-opportunities must pass None to the harvester."""
+    import sys
+    import app.grants_eligibility_harvester as mod
+
+    harvested_kwargs: list[dict] = []
+
+    def fake_harvest(**kwargs):
+        harvested_kwargs.append(kwargs)
+        return {"generated_at_utc": "x", "records": [], "failures": [], "source": "x", "selection_criteria": {}}
+
+    def fake_write(payload, destination=None):
+        from pathlib import Path
+        return Path("/tmp/fake.json")
+
+    monkeypatch.setattr(mod, "harvest_current_research_eligibility", fake_harvest)
+    monkeypatch.setattr(mod, "write_harvest_output", fake_write)
+    monkeypatch.setattr(sys, "argv", ["grants_eligibility_harvester"])
+
+    mod.main()
+
+    assert harvested_kwargs[0]["max_opportunities"] is None
