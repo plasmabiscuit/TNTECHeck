@@ -116,11 +116,16 @@ def _build_get_opportunity_list_envelope(opportunity_number: str) -> bytes:
 
 
 def _extract_soap_xml(payload: str) -> str:
-    start = payload.find("<soap:Envelope")
-    end = payload.rfind("</soap:Envelope>")
-    if start == -1 or end == -1:
+    # Match any SOAP Envelope regardless of namespace prefix, e.g. <soap:Envelope>,
+    # <soapenv:Envelope>, <SOAP-ENV:Envelope>, etc.
+    match = re.search(
+        r"<(?P<prefix>[^:\s>]+):Envelope\b.*?</(?P=prefix):Envelope>",
+        payload,
+        flags=re.DOTALL,
+    )
+    if not match:
         return payload
-    return payload[start : end + len("</soap:Envelope>")]
+    return match.group(0)
 
 
 def parse_opportunity_package_metadata(soap_payload: str) -> OpportunityPackageMetadata:
