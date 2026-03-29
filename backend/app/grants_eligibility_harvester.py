@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import io
 import json
 import re
@@ -21,12 +22,17 @@ _GRANTS_COMMON_NS = "http://apply.grants.gov/system/GrantsCommonElements-V1.0"
 _APPLICANT_COMMON_NS = "http://apply.grants.gov/system/ApplicantCommonElements-V1.0"
 _SERVICE_NS = "http://apply.grants.gov/services/ApplicantWebServices-V2.0"
 
-ELIGIBILITY_TERMS = (
+_ELIGIBILITY_TERMS_RAW = (
     "eligibility",
     "eligible",
     "eligible applicants",
     "who may apply",
     "applicant eligibility",
+)
+# Precompiled word-boundary patterns so "ineligible" / "noneligible" are not matched.
+_ELIGIBILITY_PATTERNS = tuple(
+    re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)
+    for term in _ELIGIBILITY_TERMS_RAW
 )
 HEADING_PATTERN = re.compile(r"^(?:[A-Z][A-Z\s/&,-]{4,}|\d+(?:\.\d+)*\s+[A-Z].{0,120})$")
 
@@ -46,7 +52,7 @@ def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
-            "User-Agent": "TNTECheck-EligibilityHarvester/0.1 (+https://github.com/)",
+            "User-Agent": "TNTECheck-EligibilityHarvester/0.1 (+https://github.com/plasmabiscuit/TNTECheck)",
         },
     )
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -157,7 +163,7 @@ def fetch_opportunity_package_metadata(opportunity_number: str) -> OpportunityPa
         data=_build_get_opportunity_list_envelope(opportunity_number),
         headers={
             "Content-Type": "text/xml; charset=utf-8",
-            "User-Agent": "TNTECheck-EligibilityHarvester/0.1 (+https://github.com/)",
+            "User-Agent": "TNTECheck-EligibilityHarvester/0.1 (+https://github.com/plasmabiscuit/TNTECheck)",
         },
     )
     with urllib.request.urlopen(request, timeout=60) as response:
@@ -176,7 +182,7 @@ def _pdf_to_text(pdf_bytes: bytes) -> str:
 def download_instruction_text(instructions_url: str) -> str:
     request = urllib.request.Request(
         instructions_url,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; TNTECheck/0.1; +https://github.com/)"},
+        headers={"User-Agent": "Mozilla/5.0 (compatible; TNTECheck/0.1; +https://github.com/plasmabiscuit/TNTECheck)"},
     )
     with urllib.request.urlopen(request, timeout=90) as response:
         content_type = response.headers.get("Content-Type", "").lower()
@@ -185,7 +191,11 @@ def download_instruction_text(instructions_url: str) -> str:
     if "pdf" in content_type or instructions_url.lower().endswith(".pdf"):
         return _pdf_to_text(payload)
 
-    return payload.decode("utf-8", errors="ignore")
+    decoded = payload.decode("utf-8", errors="ignore")
+    if "html" in content_type or re.search(r"<html[\s>]", decoded, re.IGNORECASE):
+        return _strip_html(decoded)
+
+    return decoded
 
 
 def _strip_html(value: str) -> str:
@@ -198,7 +208,8 @@ def _strip_html(value: str) -> str:
         flags=re.IGNORECASE,
     )
     text = re.sub(r"<[^>]+>", " ", normalized_breaks)
-    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
+    unescaped = html.unescape(text)
+    lines = [re.sub(r"\s+", " ", line).strip() for line in unescaped.splitlines()]
     return "\n".join(line for line in lines if line)
 
 
@@ -208,8 +219,7 @@ def extract_eligibility_sections(instruction_text: str) -> list[dict[str, str]]:
     sections: list[dict[str, str]] = []
 
     for idx, line in enumerate(nonempty):
-        normalized = line.lower()
-        if not any(term in normalized for term in ELIGIBILITY_TERMS):
+        if not any(pat.search(line) for pat in _ELIGIBILITY_PATTERNS):
             continue
 
         heading = line
@@ -218,7 +228,7 @@ def extract_eligibility_sections(instruction_text: str) -> list[dict[str, str]]:
 
         block = [line]
         for tail in nonempty[idx + 1 :]:
-            if HEADING_PATTERN.match(tail) and not any(term in tail.lower() for term in ELIGIBILITY_TERMS):
+            if HEADING_PATTERN.match(tail) and not any(pat.search(tail) for pat in _ELIGIBILITY_PATTERNS):
                 break
             block.append(tail)
             if len(" ".join(block)) > 2400:
@@ -298,7 +308,9 @@ def harvest_current_research_eligibility(max_opportunities: int = 10) -> dict[st
 
 def write_harvest_output(payload: dict[str, Any], destination: Path | None = None) -> Path:
     output = destination or BASE_DATA_DIR / "grants_gov_instruction_eligibility_extracts.json"
-    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Omit the run-specific timestamp from the committed artifact to keep diffs clean.
+    persisted = {k: v for k, v in payload.items() if k != "generated_at_utc"}
+    output.write_text(json.dumps(persisted, indent=2), encoding="utf-8")
     return output
 
 
