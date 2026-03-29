@@ -104,9 +104,12 @@ Ordered to align with repository AGENTS guidance and current implementation stat
 4. [ ] **Implement rule-based comparison-group resolver**
    - convert placeholder rules into resolved institution sets at run time (or persisted snapshots)
 
-5. [ ] **Build Eligibility Profile editor/evaluator module**
-   - editable criteria UI + backend evaluate endpoint
-   - include provenance, override notes, and non-final-compliance disclaimer
+5. [ ] **Build Eligibility Profile context module**
+   - editable profiles as contextual aids (not autonomous evaluators)
+   - context surfacing endpoint (`POST /api/eligibility/context`) shows TTU data against funder criteria
+   - opportunity matching endpoint (`POST /api/eligibility/match-opportunity`) maps Grants.gov numbers to profiles
+   - profile -> report routing via `suggested_preset_ids`
+   - include provenance, citations, typical NOFO language per criterion, and PI-review disclaimer
 
 6. [ ] **Expand documentation + provenance guarantees**
    - fill docs registry coverage
@@ -130,7 +133,7 @@ Ordered to align with repository AGENTS guidance and current implementation stat
 
 ### Near-term (3–5 sprints)
 - [ ] Introduce first live adapter integration (Urban summary path).
-- [ ] Implement eligibility editor + evaluator.
+- [ ] Implement eligibility context module (contextual aid, not evaluator).
 - [ ] Resolve rule-based comparison groups beyond placeholder storage.
 
 ### Later
