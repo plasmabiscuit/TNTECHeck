@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from app.grants_eligibility_harvester import (
     _strip_html,
+    discover_current_research_opportunities,
     download_instruction_text,
     extract_eligibility_sections,
     parse_opportunity_package_metadata,
@@ -126,3 +129,60 @@ def test_download_instruction_text_detects_and_strips_html_by_content_type(monke
     text = download_instruction_text("https://example.gov/page.html")
     assert "<" not in text
     assert "universities & colleges" in text
+
+
+def test_discover_current_research_opportunities_paginates_and_filters(monkeypatch) -> None:
+    """discover_current_research_opportunities must page through all results and filter correctly."""
+    import app.grants_eligibility_harvester as mod
+
+    tomorrow = (date.today() + timedelta(days=1)).strftime("%m/%d/%Y")
+    yesterday = (date.today() - timedelta(days=1)).strftime("%m/%d/%Y")
+
+    # Three total hits across two pages (page size forced to 2 by _page_size kwarg).
+    all_hits = [
+        # Page 1
+        {"id": 1, "number": "A-1", "title": "Grant A", "oppStatus": "posted", "closeDate": tomorrow, "agencyCode": "NIH"},
+        {"id": 2, "number": "A-2", "title": "Grant B", "oppStatus": "forecasted", "closeDate": tomorrow},
+        # Page 2
+        {"id": 3, "number": "A-3", "title": "Grant C", "oppStatus": "posted", "closeDate": yesterday},
+        {"id": 4, "number": "A-4", "title": "Grant D", "oppStatus": "posted", "closeDate": None},
+    ]
+    calls: list[dict] = []
+
+    def fake_post_json(url, payload):
+        calls.append({"url": url, "payload": payload})
+        if "search2" in url:
+            start = payload.get("startRecordNum", 0)
+            rows = payload.get("rows", 100)
+            page = all_hits[start : start + rows]
+            return {"data": {"hitCount": len(all_hits), "oppHits": page}}
+        return {"data": {}}
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+
+    results = discover_current_research_opportunities(_page_size=2)
+
+    # A-1: valid posted + open → included
+    # A-2: forecasted → excluded
+    # A-3: posted but expired close date → excluded
+    # A-4: posted, no close date → included
+    assert len(results) == 2
+    numbers = {r["number"] for r in results}
+    assert numbers == {"A-1", "A-4"}
+
+    # Two pages of search2 calls must have been made
+    search_calls = [c for c in calls if "search2" in c["url"]]
+    assert len(search_calls) == 2
+    assert search_calls[0]["payload"]["startRecordNum"] == 0
+    assert search_calls[1]["payload"]["startRecordNum"] == 2
+
+    # oppStatuses filter must be sent on every page
+    for sc in search_calls:
+        assert sc["payload"].get("oppStatuses") == ["posted"]
+
+
+def test_search_page_size_default() -> None:
+    """_SEARCH_PAGE_SIZE must be the expected default so bulk harvests are efficient."""
+    import app.grants_eligibility_harvester as mod
+
+    assert mod._SEARCH_PAGE_SIZE == 100

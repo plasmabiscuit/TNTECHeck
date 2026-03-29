@@ -132,6 +132,7 @@ python -m app.grants_eligibility_harvester
 ```
 
 Notes:
-- The harvester targets current `posted` opportunities and filters to records whose title/synopsis contain `research`.
+- The harvester targets all currently `posted` open opportunities (no keyword restriction).
 - Full legal eligibility text is parsed from `InstructionsURL` documents when available.
+- When `InstructionsURL` yields no eligibility text, the harvester lazily fetches `fundingDescLinkUrl` from the REST `fetchOpportunity` endpoint as a fallback.
 - Failures are preserved in the output payload for provenance and partial-source resilience.

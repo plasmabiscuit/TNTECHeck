@@ -36,6 +36,8 @@ _ELIGIBILITY_PATTERNS = tuple(
 )
 HEADING_PATTERN = re.compile(r"^(?:[A-Z][A-Z\s/&,-]{4,}|\d+(?:\.\d+)*\s+[A-Z].{0,120})$")
 
+_SEARCH_PAGE_SIZE = 100  # rows per search2 request — Grants.gov supports up to 1000
+
 
 @dataclass
 class OpportunityPackageMetadata:
@@ -70,40 +72,47 @@ def _to_iso_date(value: str | None) -> date | None:
     return None
 
 
-def discover_current_research_opportunities(max_hits: int = 25) -> list[dict[str, Any]]:
-    payload = {"rows": max_hits}
-    response = _post_json(SEARCH2_URL, payload)
-    hits = response.get("data", {}).get("oppHits", [])
+def discover_current_research_opportunities(*, _page_size: int = _SEARCH_PAGE_SIZE) -> list[dict[str, Any]]:
+    """Page through ALL currently-posted open opportunities via search2.
+
+    Pagination uses ``startRecordNum`` + ``data.hitCount``.  ``fetchOpportunity``
+    is intentionally skipped here to avoid an O(N) per-hit REST call during
+    bulk discovery; the harvest loop performs that call lazily only when the
+    funding-description-link fallback is needed.
+    """
+    all_hits: list[dict[str, Any]] = []
+    start = 0
     today = date.today()
-    filtered: list[dict[str, Any]] = []
 
-    for hit in hits:
-        if hit.get("oppStatus") != "posted":
-            continue
+    while True:
+        data = _post_json(
+            SEARCH2_URL,
+            {"rows": _page_size, "startRecordNum": start, "oppStatuses": ["posted"]},
+        ).get("data", {})
+        hits = data.get("oppHits", [])
+        hit_count = int(data.get("hitCount") or 0)
 
-        close_date = _to_iso_date(hit.get("closeDate"))
-        if close_date and close_date < today:
-            continue
+        for hit in hits:
+            if hit.get("oppStatus") != "posted":
+                continue
+            close_date = _to_iso_date(hit.get("closeDate"))
+            if close_date and close_date < today:
+                continue
+            all_hits.append(
+                {
+                    "id": hit.get("id"),
+                    "number": hit.get("number"),
+                    "title": hit.get("title"),
+                    "agency": hit.get("agencyCode") or hit.get("agency"),
+                    "close_date": hit.get("closeDate"),
+                }
+            )
 
-        detail = _post_json(FETCH_OPPORTUNITY_URL, {"opportunityId": hit.get("id")}).get("data", {})
-        synopsis_desc = (detail.get("synopsis") or {}).get("synopsisDesc") or ""
-        haystack = f"{hit.get('title', '')}\n{synopsis_desc}"
-        if not re.search(r"\bresearch\b", haystack, flags=re.IGNORECASE):
-            continue
+        start += len(hits)
+        if not hits or start >= hit_count:
+            break
 
-        filtered.append(
-            {
-                "id": hit.get("id"),
-                "number": detail.get("opportunityNumber") or hit.get("number"),
-                "title": detail.get("opportunityTitle") or hit.get("title"),
-                "agency": hit.get("agency") or detail.get("owningAgencyCode"),
-                "close_date": hit.get("closeDate"),
-                "synopsis_desc": synopsis_desc,
-                "funding_desc_link_url": (detail.get("synopsis") or {}).get("fundingDescLinkUrl"),
-            }
-        )
-
-    return filtered
+    return all_hits
 
 
 def _build_get_opportunity_list_envelope(opportunity_number: str) -> bytes:
@@ -207,8 +216,8 @@ def _strip_html(value: str) -> str:
         without_styles,
         flags=re.IGNORECASE,
     )
-    text = re.sub(r"<[^>]+>", " ", normalized_breaks)
-    unescaped = html.unescape(text)
+    html_stripped = re.sub(r"<[^>]+>", " ", normalized_breaks)
+    unescaped = html.unescape(html_stripped)
     lines = [re.sub(r"\s+", " ", line).strip() for line in unescaped.splitlines()]
     return "\n".join(line for line in lines if line)
 
@@ -252,8 +261,10 @@ def extract_eligibility_sections(instruction_text: str) -> list[dict[str, str]]:
     return deduped
 
 
-def harvest_current_research_eligibility(max_opportunities: int = 10) -> dict[str, Any]:
-    opportunities = discover_current_research_opportunities(max_hits=25)[:max_opportunities]
+def harvest_current_research_eligibility(max_opportunities: int | None = None) -> dict[str, Any]:
+    opportunities = discover_current_research_opportunities()
+    if max_opportunities is not None:
+        opportunities = opportunities[:max_opportunities]
 
     harvested: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
@@ -272,11 +283,21 @@ def harvest_current_research_eligibility(max_opportunities: int = 10) -> dict[st
             extracted = extract_eligibility_sections(instruction_text)
             text_source = "instructions_url"
 
-            if not extracted and opportunity.get("funding_desc_link_url"):
-                link_text = download_instruction_text(opportunity["funding_desc_link_url"])
-                extracted = extract_eligibility_sections(_strip_html(link_text))
-                if extracted:
-                    text_source = "funding_description_link"
+            if not extracted:
+                # Lazy-fetch the REST detail only when the instructions yielded nothing,
+                # to get fundingDescLinkUrl without adding a per-hit call to discovery.
+                try:
+                    detail = _post_json(
+                        FETCH_OPPORTUNITY_URL, {"opportunityId": opportunity["id"]}
+                    ).get("data", {})
+                    funding_link = (detail.get("synopsis") or {}).get("fundingDescLinkUrl")
+                except (urllib.error.HTTPError, urllib.error.URLError, ValueError):
+                    funding_link = None
+                if funding_link:
+                    link_text = download_instruction_text(funding_link)
+                    extracted = extract_eligibility_sections(link_text)
+                    if extracted:
+                        text_source = "funding_description_link"
 
             harvested.append(
                 {
@@ -299,7 +320,6 @@ def harvest_current_research_eligibility(max_opportunities: int = 10) -> dict[st
         "selection_criteria": {
             "opp_status": "posted",
             "current_open_or_no_close_date": True,
-            "research_keyword_in_title_or_synopsis": True,
         },
         "records": harvested,
         "failures": failures,
@@ -307,6 +327,13 @@ def harvest_current_research_eligibility(max_opportunities: int = 10) -> dict[st
 
 
 def write_harvest_output(payload: dict[str, Any], destination: Path | None = None) -> Path:
+    """Persist *payload* to *destination* as JSON.
+
+    The run-specific ``generated_at_utc`` key is stripped from the written file
+    to keep committed-artifact diffs stable across re-runs.  The key remains
+    present in the in-memory *payload* dict returned by
+    :func:`harvest_current_research_eligibility`.
+    """
     output = destination or BASE_DATA_DIR / "grants_gov_instruction_eligibility_extracts.json"
     # Omit the run-specific timestamp from the committed artifact to keep diffs clean.
     persisted = {k: v for k, v in payload.items() if k != "generated_at_utc"}
