@@ -115,3 +115,23 @@ At minimum, store:
 - `applicantTypes` gives **category-level** eligibility, not always the full legal rule.
 - synopsis text may summarize eligibility but may not capture all exclusions/conditions.
 - the application instructions remain the authoritative source for edge cases, exceptions, consortia rules, cost-sharing requirements tied to applicant type, or agency-specific carve-outs.
+
+## TNTECheck implementation artifact (current repo)
+
+TNTECheck now includes a harvest utility that operationalizes the workflow above:
+
+- Module: `backend/app/grants_eligibility_harvester.py`
+- Output file: `backend/app/data/grants_gov_instruction_eligibility_extracts.json`
+- Output fields include: funder, opportunity number, title, package id, instructions URL, and extracted eligibility sections.
+
+Run with:
+
+```bash
+cd backend
+python -m app.grants_eligibility_harvester
+```
+
+Notes:
+- The harvester targets current `posted` opportunities and filters to records whose title/synopsis contain `research`.
+- Full legal eligibility text is parsed from `InstructionsURL` documents when available.
+- Failures are preserved in the output payload for provenance and partial-source resilience.
