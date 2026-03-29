@@ -97,38 +97,22 @@ def _to_iso_date(value: str | None) -> date | None:
     return None
 
 
-def discover_current_research_opportunities(
-    *,
-    eligibility_codes: tuple[str, ...] | list[str] | None = None,
-    _page_size: int = _SEARCH_PAGE_SIZE,
+def _page_opportunities(
+    extra_payload: dict[str, Any],
+    today: date,
+    _page_size: int,
 ) -> list[dict[str, Any]]:
-    """Page through currently-posted open opportunities via search2.
-
-    When *eligibility_codes* is provided the search2 request is sent with an
-    ``eligibilities`` filter so the server returns only opportunities that list
-    at least one of those applicant-type codes.  Grants.gov uses zero-padded
-    two-digit strings (e.g. ``"06"`` for public IHEs, ``"99"`` for
-    unrestricted).  See :data:`DEFAULT_HARVEST_ELIGIBILITY_CODES` for the
-    recommended set.
-
-    Pagination uses ``startRecordNum`` + ``data.hitCount``.  ``fetchOpportunity``
-    is intentionally skipped here to avoid an O(N) per-hit REST call during
-    bulk discovery; the harvest loop performs that call lazily only when the
-    funding-description-link fallback is needed.
-    """
-    all_hits: list[dict[str, Any]] = []
+    """Fetch all pages of a single search2 query and return filtered hits."""
+    hits_out: list[dict[str, Any]] = []
     start = 0
-    today = date.today()
 
     while True:
         payload: dict[str, Any] = {
             "rows": _page_size,
             "startRecordNum": start,
             "oppStatuses": ["posted"],
+            **extra_payload,
         }
-        if eligibility_codes:
-            payload["eligibilities"] = list(eligibility_codes)
-
         data = _post_json(SEARCH2_URL, payload).get("data", {})
         hits = data.get("oppHits", [])
         hit_count = int(data.get("hitCount") or 0)
@@ -139,7 +123,7 @@ def discover_current_research_opportunities(
             close_date = _to_iso_date(hit.get("closeDate"))
             if close_date and close_date < today:
                 continue
-            all_hits.append(
+            hits_out.append(
                 {
                     "id": hit.get("id"),
                     "number": hit.get("number"),
@@ -152,6 +136,46 @@ def discover_current_research_opportunities(
         start += len(hits)
         if not hits or start >= hit_count:
             break
+
+    return hits_out
+
+
+def discover_current_research_opportunities(
+    *,
+    eligibility_codes: tuple[str, ...] | list[str] | None = None,
+    _page_size: int = _SEARCH_PAGE_SIZE,
+) -> list[dict[str, Any]]:
+    """Page through currently-posted open opportunities via search2.
+
+    When *eligibility_codes* is provided, **one search is issued per code** and
+    the results are merged (OR semantics: an opportunity is included if it
+    matches *any* of the listed applicant-type codes).  Passing all codes in a
+    single request would apply AND semantics on the grants.gov side, returning
+    only the rare opportunities that explicitly list every code.
+
+    Grants.gov uses zero-padded two-digit strings (e.g. ``"06"`` for public
+    IHEs, ``"99"`` for unrestricted).  See
+    :data:`DEFAULT_HARVEST_ELIGIBILITY_CODES` for the recommended set.
+
+    ``fetchOpportunity`` is intentionally skipped here to avoid an O(N)
+    per-hit REST call during bulk discovery; the harvest loop performs that
+    call lazily only when the funding-description-link fallback is needed.
+    """
+    today = date.today()
+
+    if not eligibility_codes:
+        return _page_opportunities({}, today, _page_size)
+
+    # Issue one search per code and union results — guarantees OR semantics.
+    seen_ids: set[int | str] = set()
+    all_hits: list[dict[str, Any]] = []
+    for code in eligibility_codes:
+        for hit in _page_opportunities({"eligibilities": [code]}, today, _page_size):
+            key = hit["id"] if hit["id"] is not None else hit["number"]
+            if key in seen_ids:
+                continue
+            seen_ids.add(key)
+            all_hits.append(hit)
 
     return all_hits
 

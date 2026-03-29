@@ -189,7 +189,7 @@ def test_search_page_size_default() -> None:
 
 
 def test_discover_current_research_opportunities_sends_eligibility_codes(monkeypatch) -> None:
-    """When eligibility_codes are provided they must appear in the search2 payload."""
+    """Each eligibility code must trigger its own search2 request (OR semantics)."""
     import app.grants_eligibility_harvester as mod
 
     calls: list[dict] = []
@@ -203,8 +203,44 @@ def test_discover_current_research_opportunities_sends_eligibility_codes(monkeyp
     codes = [mod.ELIGIBILITY_CODE_PUBLIC_IHE, mod.ELIGIBILITY_CODE_UNRESTRICTED]
     mod.discover_current_research_opportunities(eligibility_codes=codes)
 
-    assert calls, "Expected at least one search2 call"
-    assert calls[0]["payload"].get("eligibilities") == codes
+    search_calls = [c for c in calls if "search2" in c["url"]]
+    # One request per code — each carrying a single-element eligibilities list.
+    assert len(search_calls) == len(codes)
+    sent_codes = [c["payload"]["eligibilities"] for c in search_calls]
+    assert [mod.ELIGIBILITY_CODE_PUBLIC_IHE] in sent_codes
+    assert [mod.ELIGIBILITY_CODE_UNRESTRICTED] in sent_codes
+
+
+def test_discover_current_research_opportunities_deduplicates_across_codes(monkeypatch) -> None:
+    """An opportunity returned by two per-code searches must appear only once."""
+    import app.grants_eligibility_harvester as mod
+    from datetime import timedelta
+
+    tomorrow = (date.today() + timedelta(days=1)).strftime("%m/%d/%Y")
+
+    shared_hit = {"id": 1, "number": "X-1", "title": "G1", "oppStatus": "posted", "closeDate": tomorrow, "agencyCode": "NIH"}
+    unique_hit = {"id": 2, "number": "X-2", "title": "G2", "oppStatus": "posted", "closeDate": None, "agencyCode": "NSF"}
+
+    call_count = 0
+
+    def fake_post_json(url, payload):
+        nonlocal call_count
+        call_count += 1
+        code = (payload.get("eligibilities") or [None])[0]
+        if code == mod.ELIGIBILITY_CODE_PUBLIC_IHE:
+            return {"data": {"hitCount": 2, "oppHits": [shared_hit, unique_hit]}}
+        # Second code also returns the shared hit
+        return {"data": {"hitCount": 1, "oppHits": [shared_hit]}}
+
+    monkeypatch.setattr(mod, "_post_json", fake_post_json)
+
+    results = mod.discover_current_research_opportunities(
+        eligibility_codes=[mod.ELIGIBILITY_CODE_PUBLIC_IHE, mod.ELIGIBILITY_CODE_STATE_GOVTS]
+    )
+
+    numbers = [r["number"] for r in results]
+    assert numbers.count("X-1") == 1, "Shared hit must appear exactly once"
+    assert "X-2" in numbers
 
 
 def test_discover_current_research_opportunities_no_eligibility_filter_by_default(monkeypatch) -> None:
