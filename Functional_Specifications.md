@@ -1485,7 +1485,7 @@ Build this as a **configuration-driven reporting platform**, not a pile of bespo
 * indicator registry
 * program-group registry
 * comparison-group registry
-* eligibility-profile engine
+* eligibility-profile context engine
 * preset/report engine
 
 Those are the pieces that survive changing NOFOs, changing sponsor priorities, and changing analyst requests.
