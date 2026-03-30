@@ -187,16 +187,25 @@ The app opens in TTU context by default. Institution switching is not part of v1
 
 No user login, no RBAC, no session-based permission model.
 
-### 6.3 Editable eligibility logic
+### 6.3 Eligibility profiles as contextual aids
 
-Eligibility profiles are **configurable templates**, not hardcoded rules. Each profile must support:
+Eligibility profiles are **contextual aids for PIs**, not autonomous evaluators. Federal grants are far too complex and varied for any system to confidently determine eligibility. Profiles serve three purposes:
 
-* editable criteria
-* editable thresholds
+1. **Pattern recognition** — Capture the *typical* criteria and data points a given funder/program cares about, so the system surfaces the right institutional data when a PI encounters a new NOFO.
+2. **Report routing** — Map funder eligibility patterns to report presets that produce the most relevant institutional evidence, via `suggested_preset_ids`.
+3. **Opportunity matching** — When a user provides a Grants.gov opportunity number, the system matches it to a profile by funder, surfaces both the NOFO eligibility language and the institutional data reports that address those requirements.
+
+The system does **not** render pass/fail verdicts. It highlights relevant criteria, shows the PI what TTU's data looks like in those areas, links to the NOFO language, and suggests which reports to run — then the PI makes the determination.
+
+Each profile must support:
+
+* editable criteria with typical thresholds as reference points
 * editable narrative labels
 * editable source mappings
-* manual override fields
-* provenance notes
+* manual confirmation fields for non-computable requirements
+* `typical_nofo_language` per criterion to help PIs locate relevant NOFO sections
+* `suggested_preset_ids` linking to the most relevant report presets
+* provenance notes and citations
 
 ### 6.4 Source abstraction
 
@@ -272,16 +281,18 @@ Required features:
 
 Purpose:
 
-* editable grant-eligibility or NOFO-profile definitions
+* contextual aids that surface relevant institutional data and route PIs to the right reports for a given funder/program
 
 Required features:
 
-* create/edit/delete profiles
-* attach indicators and data sources
-* define pass/fail logic
-* define “requires manual confirmation” logic
-* store assumptions and notes
-* render exportable eligibility worksheet
+* create/edit/delete profiles categorized by funder
+* attach indicators and data sources to criteria
+* include typical NOFO language per criterion so PIs can locate relevant sections
+* define “requires manual/institutional confirmation” fields
+* link profiles to suggested report presets via `suggested_preset_ids`
+* match Grants.gov opportunity numbers to funder profiles
+* store assumptions, citations, and provenance notes
+* render exportable eligibility context worksheet (informational, not pass/fail)
 
 ### Module E — Program Groups
 
@@ -412,33 +423,37 @@ Required fields:
 
 ## 8.3 Eligibility profile domain
 
+Eligibility profiles are **contextual aids** that capture what a funder typically cares about and route PIs to the right reports. They do not render autonomous pass/fail verdicts. See Section 6.3 and Section 14 for the full design philosophy.
+
 Required fields:
 
 * `id`
 * `name`
 * `funder`
 * `program`
+* `profile_type` (`sponsor_specific`, `nofo_specific`, `reusable_template`, `draft_custom`)
 * `version_label`
 * `effective_date`
 * `criteria[]`
 * `manual_fields[]`
-* `decision_logic`
+* `suggested_preset_ids[]` — report presets most relevant to this funder's requirements
 * `status`
 * `notes`
 * `citations[]`
 
-Each criterion:
+Each criterion (informational, not enforcement):
 
 * `criterion_id`
 * `label`
-* `type` (`computed`, `manual`, `hybrid`)
+* `type` (`computed`, `manual`, `hybrid`, `advisory`)
 * `source_indicators[]`
-* `operator`
-* `threshold`
+* `operator` — reference threshold comparison, not a pass/fail gate
+* `threshold` — typical funder reference value, editable by the PI
 * `direction`
 * `confidence`
-* `manual_override_allowed`
 * `narrative_template`
+* `typical_nofo_language` — example phrasing from NOFOs so the PI can locate the relevant section
+* `help_text`
 
 ## 8.4 Program group domain
 
@@ -670,13 +685,14 @@ Components:
 
 Components:
 
-* profile metadata form
-* criteria list
-* criterion logic editor
-* manual-field editor
-* preview evaluator
-* narrative template editor
-* export worksheet
+* profile metadata form (funder, program, profile type, citations)
+* criteria list with typical NOFO language per criterion
+* criterion editor (indicator, reference threshold, narrative template)
+* manual-field editor for non-computable requirements
+* suggested preset selector (which reports to recommend for this profile)
+* context preview — shows TTU's current data against criteria (informational, not pass/fail)
+* opportunity matcher — enter a Grants.gov number to auto-match profile and surface NOFO language
+* export context worksheet
 
 ## 10.6 Program Group Manager
 
@@ -882,44 +898,60 @@ For NIH/NSF/NIFA funding records:
 
 ## 14. Eligibility Profiles: Functional Detail
 
-Eligibility profiles are editable start points, not deterministic final truth.
+Eligibility profiles are **contextual aids**, not autonomous evaluators. Federal grants are far too complex and varied for any system to confidently determine eligibility on behalf of a PI. Profiles capture what a funder *typically* cares about and route the PI to the institutional data and reports most relevant to a given opportunity.
 
-## 14.1 Profile types
+### 14.1 What profiles do
 
-* sponsor-specific
-* NOFO-specific
-* internal reusable template
-* draft/custom
+1. **Surface relevant data** — When a PI is reviewing a NOFO, the profile shows TTU's current values for the metrics that funder typically references (e.g., Pell share for NIH AREA, STEM completions for NSF capacity programs).
+2. **Route to reports** — Each profile includes `suggested_preset_ids` linking to the report presets that produce the most useful institutional evidence for that funder's requirements.
+3. **Match opportunities** — Given a Grants.gov opportunity number, the system matches to a funder profile and surfaces both the NOFO's eligibility language and the relevant institutional context.
+4. **Provide reference points** — Criteria include typical thresholds as informational reference points (e.g., “NIH AREA ceiling is ~$6M”), not as enforcement rules.
 
-## 14.2 Criterion types
+### 14.2 What profiles do NOT do
 
-* computed from source data
-* manual input only
-* hybrid computed + confirmed
-* advisory only
+* Profiles do **not** render pass/fail verdicts
+* Profiles do **not** autonomously determine eligibility
+* Thresholds are **reference values**, not enforcement gates
+* The PI always makes the final determination after reviewing the actual NOFO
 
-## 14.3 Required behavior
+### 14.3 Profile types
+
+* sponsor-specific — captures a funder's typical patterns across many programs
+* NOFO-specific — tailored to a specific funding opportunity
+* internal reusable template — generic starting point for a category of grants
+* draft/custom — blank template for ad-hoc use
+
+### 14.4 Criterion types
+
+* computed from source data — value can be looked up from adapters
+* manual input only — requires PI or institutional confirmation
+* hybrid computed + confirmed — computed value available but may need manual verification
+* advisory only — informational data point for narrative use, no threshold comparison
+
+### 14.5 Required behavior
 
 1. Every criterion must declare:
 
    * source-backed or manual
    * confidence level
    * data freshness
-   * whether it blocks a pass/fail decision
+   * `typical_nofo_language` — example phrasing the PI should look for in the actual NOFO
 2. Profiles must support:
 
    * partial completion
-   * “unknown”
-   * “requires institutional confirmation”
+   * “unknown” values for unavailable data
+   * “requires institutional confirmation” for manual fields
    * manual narrative notes
-3. Evaluation output:
+   * `suggested_preset_ids` linking to relevant reports
+3. Context output (per criterion):
 
-   * pass
-   * fail
-   * indeterminate
-   * manual review required
+   * current TTU value (if available)
+   * reference threshold from the profile
+   * data source and confidence
+   * narrative text for proposal use
+   * typical NOFO language for cross-reference
 
-### 14.4 Example profile object
+### 14.6 Example profile object
 
 ```ts
 interface EligibilityProfile {
@@ -927,11 +959,13 @@ interface EligibilityProfile {
   name: string;
   funder: string;
   program: string;
+  profile_type: “sponsor_specific” | “nofo_specific” | “reusable_template” | “draft_custom”;
   editable: true;
   criteria: EligibilityCriterion[];
   manualFields: ManualField[];
-  evaluationMode: "strict" | "advisory" | "hybrid";
-  narrativeTemplates: NarrativeTemplate[];
+  suggestedPresetIds: string[];  // which reports to run
+  citations: Citation[];
+  disclaimer: string;  // always present: “PI must review the full NOFO”
 }
 ```
 
@@ -1230,7 +1264,9 @@ Recommended internal endpoints:
 * `GET /api/eligibility/profiles`
 * `POST /api/eligibility/profiles`
 * `PUT /api/eligibility/profiles/{id}`
-* `POST /api/eligibility/evaluate`
+* `DELETE /api/eligibility/profiles/{id}`
+* `POST /api/eligibility/context` — surface institutional data for a profile (informational, not pass/fail)
+* `POST /api/eligibility/match-opportunity` — match Grants.gov opportunity number to a funder profile + relevant data
 
 ### 23.4 Program groups
 
@@ -1417,11 +1453,13 @@ This requirement exists to keep adapter behavior, registry mappings, and reporti
 
 ### 29.2 Seed eligibility profiles
 
-* NIH AREA-like template
-* NSF institutional-capacity template
-* USDA/NIFA strengthening template
-* ED Title V institutional-development template
-* blank custom profile
+Each profile captures what the funder *typically* cares about and which reports to surface. They are contextual aids, not autonomous evaluators.
+
+* NIH AREA-like template — funding caps, research environment, Pell share, PI eligibility -> routes to `nih_eligibility_snapshot`
+* NSF institutional-capacity template — EPSCoR, STEM completions, broadening participation -> routes to `nsf_capacity_snapshot`
+* USDA/NIFA strengthening template — land-grant designation, agriculture completions, student pipeline -> routes to `nifa_strengthening_snapshot`
+* ED Title V institutional-development template — HSI threshold, expenditure/FTE, graduation rate, Pell share -> routes to `ed_title_v_need_snapshot`
+* blank custom profile — empty starting point for ad-hoc use
 
 ### 29.3 Seed report presets
 
@@ -1447,7 +1485,7 @@ Build this as a **configuration-driven reporting platform**, not a pile of bespo
 * indicator registry
 * program-group registry
 * comparison-group registry
-* eligibility-profile engine
+* eligibility-profile context engine
 * preset/report engine
 
 Those are the pieces that survive changing NOFOs, changing sponsor priorities, and changing analyst requests.

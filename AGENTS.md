@@ -15,7 +15,7 @@ Prefer implementing the architecture described there over ad hoc shortcuts.
    - indicator registry
    - program-group registry
    - comparison-group registry
-   - eligibility-profile engine
+   - eligibility-profile context engine
    - preset/report engine
 4. Keep TTU as the default institution context.
 5. Preserve clean frontend/backend separation.
@@ -24,7 +24,7 @@ Prefer implementing the architecture described there over ad hoc shortcuts.
 ## Data-model expectations
 - Public completions are CIP-based, not department-based.
 - Department views must flow through local program-group mappings.
-- Eligibility profiles are editable starting points, not final compliance truth.
+- Eligibility profiles are **contextual aids**, not autonomous evaluators. They surface relevant institutional data and route PIs to the right reports — the PI always makes the final eligibility determination after reviewing the actual NOFO.
 
 ## Preferred implementation order
 1. seed registries
@@ -32,7 +32,7 @@ Prefer implementing the architecture described there over ad hoc shortcuts.
 3. metadata endpoints
 4. preset/report execution path
 5. comparison/program-group handling
-6. eligibility editor/evaluator
+6. eligibility context module (contextual aid, not evaluator)
 7. richer exports
 
 
